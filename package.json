@@ -1,0 +1,12 @@
+{
+  "name": "sop-assistant",
+  "version": "1.0.0",
+  "description": "SOP Assistant chatbot for CAT Flyservice employee onboarding",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "keywords": ["sop", "chatbot", "onboarding", "gemini"],
+  "author": "CAT Flyservice",
+  "license": "PRIVATE"
+}
