@@ -18,6 +18,18 @@
     .prose li { margin: 0.25rem 0; }
     .prose p { margin: 0.5rem 0; }
     .prose code { background: #f1f5f9; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.875rem; }
+    .prose pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
+    .prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.8125rem; }
+    .prose h1 { font-size: 1.5rem; font-weight: 700; margin: 1.5rem 0 0.75rem; color: #1e293b; }
+    .prose h2 { font-size: 1.25rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: #334155; }
+    .prose h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #475569; }
+    .prose table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.875rem; }
+    .prose thead th { background: #f8fafc; text-align: left; padding: 0.625rem 0.75rem; border: 1px solid #e2e8f0; font-weight: 600; color: #475569; }
+    .prose tbody td { padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; }
+    .prose tbody tr:hover { background: #f8fafc; }
+    .prose hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.25rem 0; }
+    .prose a { color: #2563eb; text-decoration: underline; }
+    .prose a:hover { color: #1d4ed8; }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -27,39 +39,144 @@
 </head>
 <body>
   <div id="root"></div>
-  
+
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  
+
   <script type="text/babel">
-    const { useState, useRef, useEffect, useCallback } = React;
+    const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
     // ============================================================
     // CONFIGURATION
     // ============================================================
-    
+
     const CONFIG = {
-      // Firebase Configuration (optional - for future use)
       firebase: {
-        apiKey: "",
-        authDomain: "",
-        projectId: "",
-        storageBucket: "",
-        messagingSenderId: "",
-        appId: ""
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
       },
-      // Login Credentials
       credentials: { username: 'cat', password: 'cat1234' }
     };
 
     // ============================================================
-    // LOCAL STORAGE
+    // FIREBASE INITIALIZATION
     // ============================================================
-    
+
+    let db = null;
+    try {
+      if (CONFIG.firebase.apiKey && CONFIG.firebase.apiKey !== "YOUR_API_KEY") {
+        const app = firebase.initializeApp(CONFIG.firebase);
+        db = firebase.firestore();
+      }
+    } catch (e) {
+      console.warn('Firebase not initialized — using placeholder config.', e);
+    }
+
+    // ============================================================
+    // FIRESTORE CRUD HELPERS
+    // ============================================================
+
+    const FirestoreService = {
+      // -- Generic CRUD --
+      async getAll(collection) {
+        if (!db) return [];
+        const snapshot = await db.collection(collection).get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      },
+
+      async getById(collection, id) {
+        if (!db) return null;
+        const doc = await db.collection(collection).doc(id).get();
+        return doc.exists ? { id: doc.id, ...doc.data() } : null;
+      },
+
+      async add(collection, data) {
+        if (!db) return null;
+        const docRef = await db.collection(collection).add({
+          ...data,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return docRef.id;
+      },
+
+      async update(collection, id, data) {
+        if (!db) return;
+        await db.collection(collection).doc(id).update({
+          ...data,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      },
+
+      async remove(collection, id) {
+        if (!db) return;
+        await db.collection(collection).doc(id).delete();
+      },
+
+      // -- SOP-specific --
+      async getSOPs() {
+        return this.getAll('sops');
+      },
+
+      async saveSOP(data) {
+        return this.add('sops', data);
+      },
+
+      async updateSOP(id, data) {
+        return this.update('sops', id, data);
+      },
+
+      async deleteSOP(id) {
+        return this.remove('sops', id);
+      },
+
+      // -- Glossary-specific --
+      async getGlossary() {
+        return this.getAll('glossary');
+      },
+
+      async saveGlossaryEntry(data) {
+        return this.add('glossary', data);
+      },
+
+      async updateGlossaryEntry(id, data) {
+        return this.update('glossary', id, data);
+      },
+
+      async deleteGlossaryEntry(id) {
+        return this.remove('glossary', id);
+      },
+
+      // -- Contacts-specific --
+      async getContacts() {
+        return this.getAll('contacts');
+      },
+
+      async saveContact(data) {
+        return this.add('contacts', data);
+      },
+
+      async updateContact(id, data) {
+        return this.update('contacts', id, data);
+      },
+
+      async deleteContact(id) {
+        return this.remove('contacts', id);
+      }
+    };
+
+    // ============================================================
+    // LOCAL STORAGE (fallback until Firebase is configured)
+    // ============================================================
+
     const LocalStorage = {
       getSOPs: () => {
         const stored = localStorage.getItem('sop_bot_sops');
@@ -67,6 +184,20 @@
       },
       saveSOPs: (sops) => {
         localStorage.setItem('sop_bot_sops', JSON.stringify(sops));
+      },
+      getGlossary: () => {
+        const stored = localStorage.getItem('sop_bot_glossary');
+        return stored ? JSON.parse(stored) : null;
+      },
+      saveGlossary: (glossary) => {
+        localStorage.setItem('sop_bot_glossary', JSON.stringify(glossary));
+      },
+      getContacts: () => {
+        const stored = localStorage.getItem('sop_bot_contacts');
+        return stored ? JSON.parse(stored) : null;
+      },
+      saveContacts: (contacts) => {
+        localStorage.setItem('sop_bot_contacts', JSON.stringify(contacts));
       },
       getCategories: () => {
         const stored = localStorage.getItem('sop_bot_categories');
@@ -80,7 +211,7 @@
     // ============================================================
     // DEFAULT SOP DATA
     // ============================================================
-    
+
     const DEFAULT_SOPS = [
       {
         id: 'sop-sharepoint',
@@ -530,12 +661,49 @@ Attach: U/S tag(s), Core exchange document(s), NIS document(s), AWB, Shipping in
     const DEFAULT_CATEGORIES = ['Systems', 'Logistics', 'Purchasing'];
 
     // ============================================================
+    // DEFAULT GLOSSARY DATA
+    // ============================================================
+
+    const INITIAL_GLOSSARY = [
+      { id: '1', type: 'abbreviation', name: 'AOG', meaning: 'Aircraft On Ground', context: 'Highest priority for flight operations', category: 'Operations' },
+      { id: '2', type: 'abbreviation', name: 'AWB', meaning: 'Airway Bill', context: 'Tracking number', category: 'Documents' },
+      { id: '3', type: 'abbreviation', name: 'PN', meaning: 'Part Number', category: 'General' },
+      { id: '4', type: 'abbreviation', name: 'SN', meaning: 'Serial Number', category: 'General' },
+      { id: '5', type: 'abbreviation', name: 'S/V', meaning: 'Serviceable', context: 'Part condition', category: 'Part Conditions' },
+      { id: '6', type: 'abbreviation', name: 'U/S', meaning: 'Unserviceable', context: 'Part condition', category: 'Part Conditions' },
+      { id: '7', type: 'abbreviation', name: 'O/H', meaning: 'Overhauled', context: 'Part condition', category: 'Part Conditions' },
+      { id: '8', type: 'abbreviation', name: 'F/N', meaning: 'Factory New', context: 'Part condition', category: 'Part Conditions' },
+      { id: '9', type: 'term', name: 'Rotable', meaning: 'Aircraft components that can be repaired and reused', category: 'Parts' },
+      { id: '10', type: 'term', name: 'Consumable', meaning: 'Parts that can only be used once', category: 'Parts' },
+      { id: '11', type: 'term', name: 'Core', meaning: 'The unserviceable unit in an exchange transaction', category: 'Parts' },
+      { id: '12', type: 'term', name: 'Exchange', meaning: 'Serviceable unit received when returning a core unit', category: 'Parts' },
+      { id: '13', type: 'abbreviation', name: 'Form 1', meaning: 'EASA Authorized Release Certificate', category: 'Documents' },
+      { id: '14', type: 'abbreviation', name: '8130-3', meaning: 'FAA Airworthiness Approval Tag', category: 'Documents' },
+      { id: '15', type: 'abbreviation', name: 'COC', meaning: 'Certificate of Conformance', context: 'Also written as CofC', category: 'Documents' },
+      { id: '16', type: 'abbreviation', name: 'EASA', meaning: 'European Union Aviation Safety Agency', category: 'Organizations' },
+      { id: '17', type: 'abbreviation', name: 'FAA', meaning: 'Federal Aviation Administration', category: 'Organizations' },
+      { id: '18', type: 'abbreviation', name: 'AMS', meaning: 'Aircraft Management System', context: 'Our inventory and ordering system', category: 'Systems' },
+      { id: '19', type: 'abbreviation', name: 'PO', meaning: 'Purchase Order', category: 'General' },
+      { id: '20', type: 'abbreviation', name: 'GMT', meaning: 'Ground Maintenance Technics', context: 'Company name of the mechanics servicing Airseven', category: 'Organizations' },
+    ];
+
+    // ============================================================
+    // DEFAULT CONTACTS DATA
+    // ============================================================
+
+    const INITIAL_CONTACTS = [
+      { id: '1', name: 'Søren Petersen', role: 'Logistics Manager', phone: '+45 12 34 56 78', email: 'sep@catflyservice.dk' },
+      { id: '2', name: 'Maria Jensen', role: 'CAMO Manager', phone: '+45 23 45 67 89', email: 'mje@catflyservice.dk' },
+      { id: '3', name: 'Lars Andersen', role: 'Technical Director', phone: '+45 34 56 78 90', email: 'lan@catflyservice.dk' },
+    ];
+
+    // ============================================================
     // GEMINI AI SERVICE (via serverless function)
     // ============================================================
-    
+
     const GeminiService = {
       buildSystemPrompt: (sops, mode, isStepMode = false) => {
-        const sopSummaries = sops.map(sop => 
+        const sopSummaries = sops.map(sop =>
           `## ${sop.title} (Category: ${sop.category})\n${sop.content}`
         ).join('\n\n---\n\n');
 
@@ -589,14 +757,13 @@ ${sopSummaries}`;
       chat: async (messages, sops, mode) => {
         const isStepMode = mode === 'stepbystep';
         const systemPrompt = GeminiService.buildSystemPrompt(sops, mode, isStepMode);
-        
+
         const geminiMessages = messages.map(msg => ({
           role: msg.type === 'user' ? 'user' : 'model',
           parts: [{ text: msg.content }]
         }));
 
         try {
-          // Call our serverless function instead of Gemini directly
           const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -613,7 +780,7 @@ ${sopSummaries}`;
 
           const data = await response.json();
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          
+
           if (isStepMode) {
             try {
               const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -624,7 +791,7 @@ ${sopSummaries}`;
               return { type: 'text', content: text };
             }
           }
-          
+
           return text;
         } catch (error) {
           console.error('Gemini API error:', error);
@@ -634,14 +801,42 @@ ${sopSummaries}`;
     };
 
     // ============================================================
+    // NAV ITEMS CONFIGURATION
+    // ============================================================
+
+    const NAV_ITEMS = [
+      { id: 'ask-cat', label: 'Ask CAT', icon: 'chat' },
+      { id: 'sop-archive', label: 'SOP Archive', icon: 'document' },
+      { id: 'glossary', label: 'Glossary', icon: 'book' },
+      { id: 'contacts', label: 'Contacts', icon: 'people' },
+    ];
+
+    // ============================================================
+    // SVG ICONS
+    // ============================================================
+
+    function NavIcon({ name, className = "w-5 h-5" }) {
+      const icons = {
+        chat: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
+        document: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+        book: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
+        people: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+        admin: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+        logout: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+      };
+      return icons[name] || null;
+    }
+
+    // ============================================================
     // MAIN APP
     // ============================================================
-    
+
     function App() {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
-      const [showAdmin, setShowAdmin] = useState(false);
       const [sops, setSops] = useState([]);
       const [categories, setCategories] = useState([]);
+      const [glossary, setGlossary] = useState([]);
+      const [contacts, setContacts] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
 
       useEffect(() => {
@@ -659,6 +854,20 @@ ${sopSummaries}`;
             LocalStorage.saveCategories(loadedCategories);
           }
           setCategories(loadedCategories);
+
+          let loadedGlossary = LocalStorage.getGlossary();
+          if (!loadedGlossary) {
+            loadedGlossary = INITIAL_GLOSSARY;
+            LocalStorage.saveGlossary(loadedGlossary);
+          }
+          setGlossary(loadedGlossary);
+
+          let loadedContacts = LocalStorage.getContacts();
+          if (!loadedContacts) {
+            loadedContacts = INITIAL_CONTACTS;
+            LocalStorage.saveContacts(loadedContacts);
+          }
+          setContacts(loadedContacts);
 
           const session = sessionStorage.getItem('sop_bot_session');
           if (session === 'authenticated') {
@@ -678,7 +887,6 @@ ${sopSummaries}`;
       const handleLogout = () => {
         sessionStorage.removeItem('sop_bot_session');
         setIsLoggedIn(false);
-        setShowAdmin(false);
       };
 
       const handleSopsUpdate = (newSops) => {
@@ -689,6 +897,16 @@ ${sopSummaries}`;
       const handleCategoriesUpdate = (newCategories) => {
         setCategories(newCategories);
         LocalStorage.saveCategories(newCategories);
+      };
+
+      const handleGlossaryUpdate = (newGlossary) => {
+        setGlossary(newGlossary);
+        LocalStorage.saveGlossary(newGlossary);
+      };
+
+      const handleContactsUpdate = (newContacts) => {
+        setContacts(newContacts);
+        LocalStorage.saveContacts(newContacts);
       };
 
       if (isLoading) {
@@ -703,24 +921,18 @@ ${sopSummaries}`;
       }
 
       if (!isLoggedIn) return <LoginScreen onLogin={handleLogin} />;
-      if (showAdmin) {
-        return (
-          <AdminPanel 
-            sops={sops}
-            categories={categories}
-            onSopsUpdate={handleSopsUpdate}
-            onCategoriesUpdate={handleCategoriesUpdate}
-            onBack={() => setShowAdmin(false)} 
-            onLogout={handleLogout} 
-          />
-        );
-      }
 
       return (
-        <MainInterface 
+        <AppShell
           sops={sops}
-          onAdminClick={() => setShowAdmin(true)} 
-          onLogout={handleLogout} 
+          categories={categories}
+          glossary={glossary}
+          contacts={contacts}
+          onSopsUpdate={handleSopsUpdate}
+          onCategoriesUpdate={handleCategoriesUpdate}
+          onGlossaryUpdate={handleGlossaryUpdate}
+          onContactsUpdate={handleContactsUpdate}
+          onLogout={handleLogout}
         />
       );
     }
@@ -728,7 +940,7 @@ ${sopSummaries}`;
     // ============================================================
     // LOGIN SCREEN
     // ============================================================
-    
+
     function LoginScreen({ onLogin }) {
       const [username, setUsername] = useState('');
       const [password, setPassword] = useState('');
@@ -788,349 +1000,746 @@ ${sopSummaries}`;
     }
 
     // ============================================================
-    // MAIN INTERFACE
+    // APP SHELL (Sidebar + Content Area)
     // ============================================================
-    
-    function MainInterface({ sops, onAdminClick, onLogout }) {
-      const [mode, setMode] = useState(null);
 
-      if (mode === 'docs') return <DocumentationMode sops={sops} onBack={() => setMode(null)} onAdminClick={onAdminClick} onLogout={onLogout} />;
-      if (mode === 'guide') return <StepByStepMode sops={sops} onBack={() => setMode(null)} onAdminClick={onAdminClick} onLogout={onLogout} />;
+    function AppShell({ sops, categories, glossary, contacts, onSopsUpdate, onCategoriesUpdate, onGlossaryUpdate, onContactsUpdate, onLogout }) {
+      const [currentPage, setCurrentPage] = useState('ask-cat');
 
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-          <Header onAdminClick={onAdminClick} onLogout={onLogout} sopCount={sops.length} />
-          
-          <div className="max-w-4xl mx-auto px-4 py-12">
-            <div className="text-center mb-12">
-              <h1 className="text-3xl font-bold text-gray-800 mb-3">Welcome to SOP Assistant</h1>
-              <p className="text-lg text-gray-600">How would you like to learn today?</p>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <button onClick={() => setMode('docs')} className="bg-white rounded-2xl p-8 shadow-lg border-2 border-transparent hover:border-blue-500 hover:shadow-xl transition-all text-left group">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-                  <svg className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">View Documentation</h2>
-                <p className="text-gray-600 mb-4">Search and browse our SOPs. Ask questions and get relevant sections from our procedures.</p>
-                <span className="text-blue-600 font-medium flex items-center gap-2">Start searching <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
-              </button>
-
-              <button onClick={() => setMode('guide')} className="bg-white rounded-2xl p-8 shadow-lg border-2 border-transparent hover:border-green-500 hover:shadow-xl transition-all text-left group">
-                <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-green-500 transition-colors">
-                  <svg className="w-8 h-8 text-green-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Guide Me Step-by-Step</h2>
-                <p className="text-gray-600 mb-4">Get walked through a procedure one step at a time. Perfect for learning new processes.</p>
-                <span className="text-green-600 font-medium flex items-center gap-2">Start a guide <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // ============================================================
-    // HEADER
-    // ============================================================
-    
-    function Header({ onAdminClick, onLogout, sopCount, onBack, title }) {
-      return (
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            {onBack && <button onClick={onBack} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>}
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            </div>
-            <div>
-              <h1 className="font-semibold text-gray-800">{title || 'SOP Assistant'}</h1>
-              <p className="text-xs text-gray-500">CAT Internal Tool{sopCount ? ` • ${sopCount} SOPs` : ''}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {onAdminClick && <button onClick={onAdminClick} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Admin Panel"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>}
-            <button onClick={onLogout} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Logout"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
-          </div>
-        </header>
-      );
-    }
-
-    // ============================================================
-    // DOCUMENTATION MODE
-    // ============================================================
-    
-    function DocumentationMode({ sops, onBack, onAdminClick, onLogout }) {
-      const [messages, setMessages] = useState([{ id: 1, type: 'bot', content: "Hi! I'm here to help you find information in our SOPs. Ask me anything about our procedures.\n\n**Example questions:**\n- How do I receive goods from EU?\n- What's the process for ordering tools?\n- Where can I find the password list?", timestamp: new Date() }]);
-      const [inputValue, setInputValue] = useState('');
-      const [isTyping, setIsTyping] = useState(false);
-      const messagesEndRef = useRef(null);
-
-      useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-      const handleSendMessage = async (e) => {
-        e.preventDefault();
-        if (!inputValue.trim() || isTyping) return;
-        const userMessage = { id: Date.now(), type: 'user', content: inputValue, timestamp: new Date() };
-        setMessages((prev) => [...prev, userMessage]);
-        setInputValue('');
-        setIsTyping(true);
-        try {
-          const conversationHistory = [...messages, userMessage].map(m => ({ type: m.type, content: m.content }));
-          const response = await GeminiService.chat(conversationHistory, sops, 'documentation');
-          setMessages((prev) => [...prev, { id: Date.now() + 1, type: 'bot', content: response, timestamp: new Date() }]);
-        } catch (err) {
-          setMessages((prev) => [...prev, { id: Date.now() + 1, type: 'bot', content: "Sorry, I encountered an error. Please try again.", timestamp: new Date() }]);
-        } finally {
-          setIsTyping(false);
+      const renderPage = () => {
+        switch (currentPage) {
+          case 'ask-cat':
+            return <AskCATPage sops={sops} />;
+          case 'sop-archive':
+            return <SOPArchivePage sops={sops} onNavigate={setCurrentPage} />;
+          case 'glossary':
+            return <GlossaryPage glossary={glossary} />;
+          case 'contacts':
+            return <ContactsPage contacts={contacts} />;
+          case 'admin':
+            return (
+              <AdminPage
+                sops={sops}
+                categories={categories}
+                glossary={glossary}
+                contacts={contacts}
+                onSopsUpdate={onSopsUpdate}
+                onCategoriesUpdate={onCategoriesUpdate}
+                onGlossaryUpdate={onGlossaryUpdate}
+                onContactsUpdate={onContactsUpdate}
+              />
+            );
+          default:
+            return <AskCATPage sops={sops} />;
         }
       };
 
-      const renderMarkdown = (content) => {
-        try { return <div className="prose text-sm" dangerouslySetInnerHTML={{ __html: marked.parse(content) }} />; }
-        catch { return <div className="text-sm whitespace-pre-wrap">{content}</div>; }
-      };
-
       return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-          <Header onBack={onBack} onAdminClick={onAdminClick} onLogout={onLogout} title="View Documentation" sopCount={sops.length} />
-          <div className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="max-w-2xl mx-auto space-y-4">
-              {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${message.type === 'user' ? 'bg-blue-500 text-white rounded-br-md' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'}`}>
-                    {message.type === 'user' ? <div className="text-sm">{message.content}</div> : renderMarkdown(message.content)}
-                  </div>
+        <div className="h-screen flex bg-gray-100">
+          {/* Sidebar */}
+          <aside className="w-60 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+            {/* Logo / Brand */}
+            <div className="px-5 py-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 </div>
-              ))}
-              {isTyping && <div className="flex justify-start"><div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm"><div className="flex gap-1.5"><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce-dot"></div><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce-dot" style={{ animationDelay: '150ms' }}></div><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce-dot" style={{ animationDelay: '300ms' }}></div></div></div></div>}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-          <div className="bg-white border-t border-gray-200 px-4 py-4">
-            <form onSubmit={handleSendMessage} className="max-w-2xl mx-auto flex gap-3">
-              <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask about any procedure..." className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" disabled={isTyping} />
-              <button type="submit" disabled={isTyping || !inputValue.trim()} className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white px-5 py-3 rounded-xl transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg></button>
-            </form>
-          </div>
-        </div>
-      );
-    }
-
-    // ============================================================
-    // STEP-BY-STEP MODE
-    // ============================================================
-    
-    function StepByStepMode({ sops, onBack, onAdminClick, onLogout }) {
-      const [conversationHistory, setConversationHistory] = useState([]);
-      const [currentCard, setCurrentCard] = useState(null);
-      const [completedSteps, setCompletedSteps] = useState([]);
-      const [isLoading, setIsLoading] = useState(false);
-      const [showHistory, setShowHistory] = useState(false);
-      const [inputValue, setInputValue] = useState('');
-      const [isStarted, setIsStarted] = useState(false);
-
-      const sendMessage = async (message) => {
-        const userMsg = { type: 'user', content: message };
-        const newHistory = [...conversationHistory, userMsg];
-        setConversationHistory(newHistory);
-        setIsLoading(true);
-        try {
-          const response = await GeminiService.chat(newHistory, sops, 'stepbystep');
-          const botMsg = { type: 'bot', content: typeof response === 'string' ? response : JSON.stringify(response) };
-          setConversationHistory([...newHistory, botMsg]);
-          if (typeof response === 'object') setCurrentCard(response);
-          else setCurrentCard({ type: 'text', content: response });
-        } catch (err) {
-          setCurrentCard({ type: 'error', content: 'Sorry, something went wrong. Please try again.' });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
-      const handleStart = (e) => { e.preventDefault(); if (!inputValue.trim()) return; setIsStarted(true); sendMessage(inputValue); setInputValue(''); };
-      const handleNextStep = () => { if (currentCard && currentCard.type === 'step') setCompletedSteps([...completedSteps, currentCard]); sendMessage("Done. What's the next step?"); };
-      const handleQuestion = (e) => { e.preventDefault(); if (!inputValue.trim()) return; sendMessage(inputValue); setInputValue(''); };
-      const handleOptionSelect = (option) => { sendMessage(option); };
-      const handleStartOver = () => { setConversationHistory([]); setCurrentCard(null); setCompletedSteps([]); setIsStarted(false); setInputValue(''); };
-
-      const renderMarkdown = (content) => {
-        try { return <div className="prose prose-lg" dangerouslySetInnerHTML={{ __html: marked.parse(content) }} />; }
-        catch { return <div className="whitespace-pre-wrap">{content}</div>; }
-      };
-
-      if (!isStarted) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
-            <Header onBack={onBack} onAdminClick={onAdminClick} onLogout={onLogout} title="Step-by-Step Guide" />
-            <div className="max-w-2xl mx-auto px-4 py-12">
-              <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12">
-                <div className="text-center mb-8">
-                  <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                  </div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-3">What do you need help with?</h1>
-                  <p className="text-gray-600 text-lg">Describe the task you want to complete, and I'll guide you through it step by step.</p>
-                </div>
-                <form onSubmit={handleStart}>
-                  <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Example: I need to receive a shipment from USA..." className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none text-lg resize-none" rows={3} />
-                  <button type="submit" disabled={!inputValue.trim()} className="w-full mt-4 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white py-4 rounded-2xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl">Start Guide</button>
-                </form>
-                <div className="mt-8 pt-6 border-t border-gray-100">
-                  <p className="text-sm text-gray-500 text-center mb-3">Popular procedures:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {['Receive EU shipment', 'Receive non-EU shipment', 'Create purchase order', 'Request tools'].map((suggestion) => (
-                      <button key={suggestion} onClick={() => setInputValue(suggestion)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-sm transition-colors">{suggestion}</button>
-                    ))}
-                  </div>
+                <div>
+                  <div className="font-semibold text-gray-800 text-sm">SOP Assistant</div>
+                  <div className="text-xs text-gray-400">CAT Flyservice</div>
                 </div>
               </div>
             </div>
+
+            {/* Navigation Items */}
+            <nav className="flex-1 px-3 py-4 space-y-1">
+              {NAV_ITEMS.map((item) => {
+                const isActive = currentPage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setCurrentPage(item.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <NavIcon name={item.icon} className={`w-5 h-5 ${isActive ? 'text-blue-500' : 'text-gray-400'}`} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Bottom Section: Admin + Logout */}
+            <div className="px-3 py-3 border-t border-gray-100 space-y-1">
+              <button
+                onClick={() => setCurrentPage('admin')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === 'admin'
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <NavIcon name="admin" className={`w-5 h-5 ${currentPage === 'admin' ? 'text-blue-500' : 'text-gray-400'}`} />
+                Admin
+              </button>
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+              >
+                <NavIcon name="logout" className="w-5 h-5 text-gray-400" />
+                Logout
+              </button>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1 overflow-auto">
+            {renderPage()}
+          </main>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // PAGE: ASK CAT (Placeholder)
+    // ============================================================
+
+    function AskCATPage({ sops }) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center bg-gray-50 p-8">
+          <div className="text-center max-w-lg">
+            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <NavIcon name="chat" className="w-10 h-10 text-blue-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-3">Ask CAT</h1>
+            <p className="text-gray-500 mb-6 leading-relaxed">
+              Your AI-powered assistant for navigating SOPs, glossary terms, and company contacts.
+              Ask questions in natural language and get guided through procedures step by step.
+            </p>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 text-left">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Coming in Phase 2</p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                  Chat interface with AI responses
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                  Slide-in step-by-step guide panel
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                  Access to SOPs, glossary, and contacts
+                </li>
+              </ul>
+            </div>
+            <p className="text-xs text-gray-400 mt-4">{sops.length} SOPs loaded</p>
           </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // PAGE: SOP ARCHIVE
+    // ============================================================
+
+    function SOPArchivePage({ sops, onNavigate }) {
+      const [selectedSopId, setSelectedSopId] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [activeCategory, setActiveCategory] = useState('All');
+      const contentRef = useRef(null);
+
+      const categories = useMemo(() => {
+        const unique = [...new Set(sops.map(s => s.category))];
+        return ['All', ...unique.sort()];
+      }, [sops]);
+
+      const filteredSops = useMemo(() => {
+        return sops.filter(sop => {
+          const matchesSearch = !searchQuery || sop.title.toLowerCase().includes(searchQuery.toLowerCase());
+          const matchesCategory = activeCategory === 'All' || sop.category === activeCategory;
+          return matchesSearch && matchesCategory;
+        });
+      }, [sops, searchQuery, activeCategory]);
+
+      const selectedSop = useMemo(() => {
+        return sops.find(s => s.id === selectedSopId) || null;
+      }, [sops, selectedSopId]);
+
+      useEffect(() => {
+        if (contentRef.current) contentRef.current.scrollTop = 0;
+      }, [selectedSopId]);
+
+      const renderSopContent = (content) => {
+        try {
+          const html = marked.parse(content);
+          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+        } catch {
+          return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
+        }
+      };
+
+      return (
+        <div className="h-full flex">
+          {/* Left Panel — SOP List */}
+          <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+            {/* Header & Search */}
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">SOP Archive</h2>
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search SOPs..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Category Filters */}
+            <div className="px-4 py-3 border-b border-gray-100 flex gap-1.5 flex-wrap">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    activeCategory === cat
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* SOP List */}
+            <div className="flex-1 overflow-y-auto">
+              {filteredSops.length === 0 ? (
+                <div className="p-6 text-center">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-sm text-gray-400">No SOPs found</p>
+                </div>
+              ) : (
+                filteredSops.map((sop) => {
+                  const isSelected = sop.id === selectedSopId;
+                  return (
+                    <button
+                      key={sop.id}
+                      onClick={() => setSelectedSopId(sop.id)}
+                      className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 border-l-[3px] border-l-blue-500'
+                          : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
+                        {sop.title}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{sop.category}</div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer count */}
+            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
+              <p className="text-xs text-gray-400">{filteredSops.length} of {sops.length} SOPs</p>
+            </div>
+          </div>
+
+          {/* Right Panel — SOP Content */}
+          <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
+            {!selectedSop ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                  <NavIcon name="document" className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-500 mb-1">Select an SOP to view</h3>
+                <p className="text-sm text-gray-400">Choose a procedure from the list to read its full content</p>
+              </div>
+            ) : (
+              <div className="max-w-3xl mx-auto px-8 py-8">
+                {/* SOP Header */}
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
+                      {selectedSop.category}
+                    </span>
+                    <h1 className="text-2xl font-bold text-gray-900">{selectedSop.title}</h1>
+                  </div>
+                  <button
+                    onClick={() => onNavigate('ask-cat')}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0 ml-4"
+                  >
+                    <NavIcon name="chat" className="w-4 h-4 text-white" />
+                    Ask CAT about this
+                  </button>
+                </div>
+
+                {/* SOP Body */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
+                  {renderSopContent(selectedSop.content)}
+                </div>
+
+                {/* Section quick-nav (if sections exist) */}
+                {selectedSop.sections && selectedSop.sections.length > 0 && (
+                  <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Sections</h3>
+                    <div className="space-y-1.5">
+                      {selectedSop.sections.map((section, i) => (
+                        <div key={i} className="flex items-center gap-2.5 text-sm text-gray-600">
+                          <span className="w-5 h-5 bg-gray-100 text-gray-500 rounded flex items-center justify-center text-xs font-medium flex-shrink-0">{i + 1}</span>
+                          <span>{section.heading}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // PAGE: GLOSSARY
+    // ============================================================
+
+    function GlossaryPage({ glossary }) {
+      const [searchQuery, setSearchQuery] = useState('');
+      const [activeCategory, setActiveCategory] = useState('All');
+
+      const categories = useMemo(() => {
+        const unique = [...new Set(glossary.map(g => g.category))];
+        return ['All', ...unique.sort()];
+      }, [glossary]);
+
+      const filteredTerms = useMemo(() => {
+        return glossary.filter(term => {
+          const q = searchQuery.toLowerCase();
+          const matchesSearch = !searchQuery
+            || term.name.toLowerCase().includes(q)
+            || term.meaning.toLowerCase().includes(q);
+          const matchesCategory = activeCategory === 'All' || term.category === activeCategory;
+          return matchesSearch && matchesCategory;
+        });
+      }, [glossary, searchQuery, activeCategory]);
+
+      return (
+        <div className="h-full overflow-y-auto bg-gray-50">
+          <div className="max-w-4xl mx-auto px-8 py-8">
+            {/* Header */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-800">Glossary</h1>
+              <p className="text-gray-500 text-sm mt-1">Aviation abbreviations, terms, and company-specific definitions</p>
+            </div>
+
+            {/* Search */}
+            <div className="relative max-w-md mb-5">
+              <svg className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search terms or meanings..."
+                className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+
+            {/* Category Tabs */}
+            <div className="flex gap-2 flex-wrap mb-6">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    activeCategory === cat
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Results Count */}
+            <p className="text-xs text-gray-400 mb-4">{filteredTerms.length} term{filteredTerms.length !== 1 ? 's' : ''}</p>
+
+            {/* Term Cards Grid */}
+            {filteredTerms.length === 0 ? (
+              <div className="text-center py-16">
+                <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-gray-400 text-sm">No terms found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {filteredTerms.map((term) => (
+                  <div
+                    key={term.id}
+                    className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="text-lg font-bold text-gray-900">{term.name}</h3>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ml-2 ${
+                        term.type === 'abbreviation'
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {term.type === 'abbreviation' ? 'Abbreviation' : 'Term'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-2">{term.meaning}</p>
+                    {term.context && (
+                      <p className="text-xs text-gray-400 mb-3">{term.context}</p>
+                    )}
+                    <div className="text-xs text-gray-400 pt-2 border-t border-gray-100">{term.category}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // PAGE: CONTACTS
+    // ============================================================
+
+    function ContactsPage({ contacts }) {
+      return (
+        <div className="h-full overflow-y-auto bg-gray-50">
+          <div className="max-w-4xl mx-auto px-8 py-8">
+            {/* Header */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-800">Contacts</h1>
+              <p className="text-gray-500 text-sm mt-1">Internal directory</p>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Name</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Role</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Phone</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Email</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {contacts.map((contact) => (
+                    <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{contact.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{contact.role}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{contact.phone}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <a href={`mailto:${contact.email}`} className="text-blue-600 hover:text-blue-700 hover:underline">{contact.email}</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="text-xs text-gray-400 mt-4">{contacts.length} contact{contacts.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // PAGE: ADMIN (Tabbed Interface)
+    // ============================================================
+
+    const ADMIN_TABS = [
+      { id: 'sops', label: 'SOPs' },
+      { id: 'glossary', label: 'Glossary' },
+      { id: 'contacts', label: 'Contacts' },
+    ];
+
+    function AdminPage({ sops, categories, glossary, contacts, onSopsUpdate, onCategoriesUpdate, onGlossaryUpdate, onContactsUpdate }) {
+      const [activeTab, setActiveTab] = useState('sops');
+
+      return (
+        <div className="h-full overflow-auto bg-gray-50">
+          <div className="max-w-5xl mx-auto p-6">
+            {/* Header */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
+              <p className="text-gray-500 text-sm mt-1">Manage SOPs, glossary, and contacts</p>
+            </div>
+
+            {/* Tab Bar */}
+            <div className="flex gap-1 bg-gray-200 rounded-lg p-1 mb-6 w-fit">
+              {ADMIN_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'sops' && (
+              <AdminSOPsTab
+                sops={sops}
+                categories={categories}
+                onSopsUpdate={onSopsUpdate}
+                onCategoriesUpdate={onCategoriesUpdate}
+              />
+            )}
+            {activeTab === 'glossary' && (
+              <AdminGlossaryTab
+                glossary={glossary}
+                onGlossaryUpdate={onGlossaryUpdate}
+              />
+            )}
+            {activeTab === 'contacts' && (
+              <AdminContactsTab
+                contacts={contacts}
+                onContactsUpdate={onContactsUpdate}
+              />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // ADMIN TAB: SOPs
+    // ============================================================
+
+    function AdminSOPsTab({ sops, categories, onSopsUpdate, onCategoriesUpdate }) {
+      const [editingSop, setEditingSop] = useState(null);
+      const [showEditor, setShowEditor] = useState(false);
+
+      const handleDelete = (sopId) => {
+        if (confirm('Delete this SOP? This cannot be undone.')) {
+          onSopsUpdate(sops.filter(s => s.id !== sopId));
+        }
+      };
+
+      const handleSave = (sopData) => {
+        if (editingSop) {
+          onSopsUpdate(sops.map(s => s.id === editingSop.id ? { ...s, ...sopData, updatedAt: new Date().toISOString() } : s));
+        } else {
+          onSopsUpdate([...sops, { ...sopData, id: `sop-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
+        }
+        setShowEditor(false);
+        setEditingSop(null);
+      };
+
+      if (showEditor || editingSop) {
+        return (
+          <SOPEditor
+            sop={editingSop}
+            categories={categories}
+            onSave={handleSave}
+            onCancel={() => { setShowEditor(false); setEditingSop(null); }}
+          />
         );
       }
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex flex-col">
-          <Header onBack={onBack} onAdminClick={onAdminClick} onLogout={onLogout} title="Step-by-Step Guide" />
-          <div className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="max-w-2xl mx-auto">
-              {currentCard?.type === 'step' && currentCard.totalSteps && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-600">Progress</span>
-                    <span className="text-sm font-medium text-green-600">Step {currentCard.stepNumber} of {currentCard.totalSteps}</span>
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{sops.length} procedures</p>
+            <button onClick={() => setShowEditor(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add New SOP</button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {sops.map((sop) => (
+                <div key={sop.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div>
+                    <h3 className="font-medium text-gray-800">{sop.title}</h3>
+                    <div className="flex gap-3 mt-1">
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{sop.category}</span>
+                      <span className="text-xs text-gray-400">{sop.sections?.length || 0} sections</span>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${(currentCard.stepNumber / currentCard.totalSteps) * 100}%` }} />
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingSop(sop)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(sop.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
                   </div>
                 </div>
+              ))}
+              {sops.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">No SOPs yet. Add your first one.</div>
               )}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
-              {completedSteps.length > 0 && (
-                <button onClick={() => setShowHistory(!showHistory)} className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors">
-                  <svg className={`w-4 h-4 transition-transform ${showHistory ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  View previous steps ({completedSteps.length})
-                </button>
-              )}
+    // ============================================================
+    // SOP EDITOR (Split-pane with toolbar)
+    // ============================================================
 
-              {showHistory && completedSteps.length > 0 && (
-                <div className="mb-6 space-y-3">
-                  {completedSteps.map((step, index) => (
-                    <div key={index} className="bg-white/50 border border-green-200 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></div>
-                        <span className="font-medium text-gray-700">Step {step.stepNumber}: {step.title}</span>
-                      </div>
-                      <p className="text-sm text-gray-600 pl-8">{step.content?.substring(0, 100)}...</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+    function SOPEditor({ sop, categories, onSave, onCancel }) {
+      const [title, setTitle] = useState(sop?.title || '');
+      const [category, setCategory] = useState(sop?.category || categories[0] || '');
+      const [content, setContent] = useState(sop?.content || '');
+      const editorRef = useRef(null);
 
-              {isLoading && (
-                <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center fade-in">
-                  <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-gray-600 text-lg">Preparing your next step...</p>
-                </div>
-              )}
+      const parsedSections = useMemo(() => {
+        const matches = [...content.matchAll(/^(\d+[A-Za-z]?\.)\s*(.+)/gm)];
+        return matches.map(m => ({ heading: `${m[1]} ${m[2]}`, content: '' }));
+      }, [content]);
 
-              {!isLoading && currentCard && (
-                <div className="bg-white rounded-3xl shadow-xl overflow-hidden fade-in">
-                  {currentCard.type === 'step' && (
-                    <>
-                      <div className="bg-green-500 px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg">{currentCard.stepNumber}</div>
-                          <h2 className="text-xl font-bold text-white">{currentCard.title}</h2>
-                        </div>
-                      </div>
-                      <div className="p-6 md:p-8">
-                        <div className="text-gray-700 text-lg leading-relaxed mb-6">{renderMarkdown(currentCard.content)}</div>
-                        {currentCard.tip && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-                            <div className="flex items-start gap-3">
-                              <span className="text-2xl">💡</span>
-                              <div><p className="font-medium text-amber-800 mb-1">Tip</p><p className="text-amber-700">{currentCard.tip}</p></div>
-                            </div>
-                          </div>
-                        )}
-                        <button onClick={handleNextStep} className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-                          Done, next step <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                        </button>
-                      </div>
-                    </>
-                  )}
+      const previewHtml = useMemo(() => {
+        try { return marked.parse(content); }
+        catch { return ''; }
+      }, [content]);
 
-                  {currentCard.type === 'question' && (
-                    <div className="p-6 md:p-8">
-                      <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <h2 className="text-xl font-bold text-gray-800 mb-2">Quick question</h2>
-                        <p className="text-gray-600 text-lg">{currentCard.question || currentCard.content}</p>
-                      </div>
-                      {currentCard.options && currentCard.options.length > 0 ? (
-                        <div className="space-y-3">
-                          {currentCard.options.map((option, index) => (
-                            <button key={index} onClick={() => handleOptionSelect(option)} className="w-full bg-gray-100 hover:bg-blue-50 hover:border-blue-300 border-2 border-gray-200 text-gray-700 py-4 px-6 rounded-xl font-medium text-lg transition-all text-left">{option}</button>
-                          ))}
-                        </div>
-                      ) : (
-                        <form onSubmit={handleQuestion}>
-                          <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Type your answer..." className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg" />
-                          <button type="submit" disabled={!inputValue.trim()} className="w-full mt-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white py-4 rounded-2xl font-semibold text-lg transition-colors">Continue</button>
-                        </form>
-                      )}
-                    </div>
-                  )}
+      const insertAtCursor = (before, after = '') => {
+        const el = editorRef.current;
+        if (!el) return;
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const selected = content.substring(start, end);
+        const replacement = before + (selected || '') + after;
+        const newContent = content.substring(0, start) + replacement + content.substring(end);
+        setContent(newContent);
+        setTimeout(() => {
+          el.focus();
+          const cursorPos = selected ? start + replacement.length : start + before.length;
+          el.selectionStart = cursorPos;
+          el.selectionEnd = cursorPos;
+        }, 0);
+      };
 
-                  {currentCard.type === 'complete' && (
-                    <div className="p-6 md:p-8 text-center">
-                      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <h2 className="text-2xl font-bold text-gray-800 mb-3">Process Complete! 🎉</h2>
-                      <div className="text-gray-600 text-lg mb-6">{renderMarkdown(currentCard.content || "You've successfully completed all the steps.")}</div>
-                      <button onClick={handleStartOver} className="bg-green-500 hover:bg-green-600 text-white py-3 px-8 rounded-xl font-semibold transition-colors">Start Another Guide</button>
-                    </div>
-                  )}
+      const toolbarActions = [
+        { label: 'Bold', icon: 'B', action: () => insertAtCursor('**', '**') },
+        { label: 'Heading', icon: 'H', action: () => {
+          const el = editorRef.current;
+          if (!el) return;
+          const start = el.selectionStart;
+          const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+          const newContent = content.substring(0, lineStart) + '## ' + content.substring(lineStart);
+          setContent(newContent);
+          setTimeout(() => { el.focus(); el.selectionStart = el.selectionEnd = start + 3; }, 0);
+        }},
+        { label: 'List', icon: 'Li', action: () => {
+          const el = editorRef.current;
+          if (!el) return;
+          const start = el.selectionStart;
+          const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+          const newContent = content.substring(0, lineStart) + '- ' + content.substring(lineStart);
+          setContent(newContent);
+          setTimeout(() => { el.focus(); el.selectionStart = el.selectionEnd = start + 2; }, 0);
+        }},
+        { label: 'Table', icon: 'T', action: () => insertAtCursor('\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n') },
+        { label: 'Code', icon: '<>', action: () => {
+          const el = editorRef.current;
+          if (!el) return;
+          const start = el.selectionStart;
+          const end = el.selectionEnd;
+          const selected = content.substring(start, end);
+          if (selected.includes('\n') || !selected) {
+            insertAtCursor('\n```\n', '\n```\n');
+          } else {
+            insertAtCursor('`', '`');
+          }
+        }},
+      ];
 
-                  {(currentCard.type === 'text' || currentCard.type === 'error') && (
-                    <div className="p-6 md:p-8">
-                      <div className="text-gray-700 text-lg leading-relaxed mb-6">{renderMarkdown(currentCard.content)}</div>
-                      <button onClick={handleNextStep} className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-semibold text-lg transition-colors">Continue</button>
-                    </div>
-                  )}
-                </div>
-              )}
+      const canSave = title.trim() && content.trim();
 
-              {!isLoading && currentCard?.type === 'step' && (
-                <div className="mt-6">
-                  <form onSubmit={handleQuestion} className="bg-white rounded-2xl shadow-lg p-4">
-                    <p className="text-sm text-gray-500 mb-2">Have a question about this step?</p>
-                    <div className="flex gap-2">
-                      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask a question..." className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none" />
-                      <button type="submit" disabled={!inputValue.trim()} className="bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 text-gray-700 px-4 py-3 rounded-xl transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg></button>
-                    </div>
-                  </form>
-                </div>
+      return (
+        <div>
+          {/* Top bar */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">{sop ? 'Edit SOP' : 'New SOP'}</h2>
+            <div className="flex gap-2">
+              <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button onClick={() => onSave({ title, category, content, sections: parsedSections })} disabled={!canSave} className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors">Save SOP</button>
+            </div>
+          </div>
+
+          {/* Title & Category */}
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Title</label>
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g., Goods Receiving" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex gap-1 bg-gray-100 rounded-t-lg px-2 py-1.5 border border-gray-200 border-b-0">
+            {toolbarActions.map((btn) => (
+              <button
+                key={btn.label}
+                onClick={btn.action}
+                title={btn.label}
+                className="px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-white hover:text-gray-900 rounded transition-colors"
+              >
+                {btn.icon}
+              </button>
+            ))}
+          </div>
+
+          {/* Split-pane Editor + Preview */}
+          <div className="flex border border-gray-200 rounded-b-lg overflow-hidden" style={{ height: '480px' }}>
+            {/* Editor */}
+            <textarea
+              ref={editorRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-1/2 p-4 font-mono text-sm text-gray-800 resize-none outline-none border-r border-gray-200 bg-white"
+              placeholder="Write your SOP content in Markdown..."
+            />
+            {/* Preview */}
+            <div className="w-1/2 p-4 overflow-y-auto bg-white">
+              {content ? (
+                <div className="prose text-sm" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+              ) : (
+                <p className="text-sm text-gray-400 italic">Preview will appear here...</p>
               )}
             </div>
           </div>
 
-          {isStarted && !isLoading && (
-            <div className="bg-white border-t border-gray-200 px-4 py-3">
-              <div className="max-w-2xl mx-auto">
-                <button onClick={handleStartOver} className="text-gray-500 hover:text-gray-700 text-sm flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                  Start over with a new task
-                </button>
+          {/* Detected Sections */}
+          {parsedSections.length > 0 && (
+            <div className="mt-4 bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Detected Sections ({parsedSections.length})</p>
+              <div className="flex flex-wrap gap-2">
+                {parsedSections.map((s, i) => (
+                  <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">{s.heading}</span>
+                ))}
               </div>
             </div>
           )}
@@ -1139,95 +1748,292 @@ ${sopSummaries}`;
     }
 
     // ============================================================
-    // ADMIN PANEL (simplified for brevity)
+    // ADMIN TAB: GLOSSARY
     // ============================================================
-    
-    function AdminPanel({ sops, categories, onSopsUpdate, onCategoriesUpdate, onBack, onLogout }) {
-      const [showAddForm, setShowAddForm] = useState(false);
-      const [editingSop, setEditingSop] = useState(null);
-      const [showCategoryManager, setShowCategoryManager] = useState(false);
 
-      const handleDeleteSop = (sopId) => { if (confirm('Delete this SOP?')) onSopsUpdate(sops.filter(s => s.id !== sopId)); };
-      const handleSaveSop = (sopData) => {
-        if (editingSop) onSopsUpdate(sops.map(s => s.id === editingSop.id ? { ...s, ...sopData, updatedAt: new Date().toISOString() } : s));
-        else onSopsUpdate([...sops, { ...sopData, id: `sop-${Date.now()}`, updatedAt: new Date().toISOString() }]);
-        setShowAddForm(false); setEditingSop(null);
+    function AdminGlossaryTab({ glossary, onGlossaryUpdate }) {
+      const [editingTerm, setEditingTerm] = useState(null);
+      const [showForm, setShowForm] = useState(false);
+      const [filterText, setFilterText] = useState('');
+
+      const glossaryCategories = useMemo(() => {
+        return [...new Set(glossary.map(g => g.category))].sort();
+      }, [glossary]);
+
+      const filtered = useMemo(() => {
+        if (!filterText) return glossary;
+        const q = filterText.toLowerCase();
+        return glossary.filter(t => t.name.toLowerCase().includes(q) || t.meaning.toLowerCase().includes(q));
+      }, [glossary, filterText]);
+
+      const handleDelete = (id) => {
+        if (confirm('Delete this term?')) {
+          onGlossaryUpdate(glossary.filter(t => t.id !== id));
+        }
       };
 
+      const handleSave = (termData) => {
+        if (editingTerm) {
+          onGlossaryUpdate(glossary.map(t => t.id === editingTerm.id ? { ...t, ...termData } : t));
+        } else {
+          onGlossaryUpdate([...glossary, { ...termData, id: `gl-${Date.now()}` }]);
+        }
+        setShowForm(false);
+        setEditingTerm(null);
+      };
+
+      if (showForm || editingTerm) {
+        return (
+          <GlossaryFormModal
+            term={editingTerm}
+            categories={glossaryCategories}
+            onSave={handleSave}
+            onClose={() => { setShowForm(false); setEditingTerm(null); }}
+          />
+        );
+      }
+
       return (
-        <div className="min-h-screen bg-gray-50">
-          <Header onBack={onBack} onLogout={onLogout} title="Admin Panel" />
-          <div className="max-w-4xl mx-auto p-6">
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-white rounded-xl p-4 border"><div className="text-2xl font-bold">{sops.length}</div><div className="text-sm text-gray-500">Total SOPs</div></div>
-              <div className="bg-white rounded-xl p-4 border"><div className="text-2xl font-bold">{categories.length}</div><div className="text-sm text-gray-500">Categories</div></div>
-              <div className="bg-white rounded-xl p-4 border"><div className="text-2xl font-bold">{sops.reduce((acc, sop) => acc + (sop.sections?.length || 0), 0)}</div><div className="text-sm text-gray-500">Total Sections</div></div>
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="relative w-64">
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter terms..." className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
             </div>
-            <div className="flex gap-3 mb-6">
-              <button onClick={() => setShowAddForm(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm">+ Add New SOP</button>
-              <button onClick={() => setShowCategoryManager(true)} className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm border">Manage Categories</button>
-            </div>
-            <div className="bg-white rounded-xl border overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b"><h2 className="font-semibold">Standard Operating Procedures</h2></div>
-              <div className="divide-y">
-                {sops.map((sop) => (
-                  <div key={sop.id} className="px-4 py-4 flex items-center justify-between hover:bg-gray-50">
-                    <div><h3 className="font-medium">{sop.title}</h3><div className="flex gap-3 mt-1"><span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{sop.category}</span><span className="text-xs text-gray-500">{sop.sections?.length || 0} sections</span></div></div>
-                    <div className="flex gap-2">
-                      <button onClick={() => setEditingSop(sop)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">✏️</button>
-                      <button onClick={() => handleDeleteSop(sop.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">🗑️</button>
-                    </div>
+            <button onClick={() => setShowForm(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add Term</button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {filtered.map((term) => (
+                <div key={term.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium text-gray-800 text-sm">{term.name}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${term.type === 'abbreviation' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {term.type === 'abbreviation' ? 'Abbr' : 'Term'}
+                    </span>
+                    <span className="text-xs text-gray-400">{term.meaning}</span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingTerm(term)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(term.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {filtered.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">No terms found.</div>
+              )}
             </div>
           </div>
-          {(showAddForm || editingSop) && <SOPFormModal sop={editingSop} categories={categories} onClose={() => { setShowAddForm(false); setEditingSop(null); }} onSave={handleSaveSop} />}
-          {showCategoryManager && <CategoryManagerModal categories={categories} onClose={() => setShowCategoryManager(false)} onSave={onCategoriesUpdate} />}
+          <p className="text-xs text-gray-400 mt-3">{filtered.length} of {glossary.length} terms</p>
         </div>
       );
     }
 
-    function SOPFormModal({ sop, categories, onClose, onSave }) {
-      const [title, setTitle] = useState(sop?.title || '');
-      const [category, setCategory] = useState(sop?.category || categories[0]);
-      const [content, setContent] = useState(sop?.content || '');
-      const [parsedSections, setParsedSections] = useState(sop?.sections || []);
-      useEffect(() => { if (content && !sop) { const matches = [...content.matchAll(/^(\d+[A-Za-z]?\.)\s*(.+)/gm)]; setParsedSections(matches.map(m => ({ heading: `${m[1]} ${m[2]}`, content: '' }))); } }, [content]);
-      return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b flex items-center justify-between"><h2 className="text-lg font-semibold">{sop ? 'Edit SOP' : 'Add New SOP'}</h2><button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">✕</button></div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-2">Title</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-3 border rounded-xl" placeholder="e.g., Goods Receiving" /></div>
-                <div><label className="block text-sm font-medium mb-2">Category</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-4 py-3 border rounded-xl bg-white">{categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}</select></div>
-              </div>
-              <div><label className="block text-sm font-medium mb-2">Content</label><textarea value={content} onChange={(e) => setContent(e.target.value)} className="w-full px-4 py-3 border rounded-xl font-mono text-sm resize-none" rows={15} placeholder="Paste your SOP content here..." /></div>
-              {parsedSections.length > 0 && <div><label className="block text-sm font-medium mb-2">Detected Sections ({parsedSections.length})</label><div className="bg-gray-50 rounded-xl p-4 space-y-2 max-h-48 overflow-y-auto">{parsedSections.map((section, i) => <div key={i} className="flex items-center gap-2 text-sm"><span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs">{i + 1}</span><span>{section.heading}</span></div>)}</div></div>}
-            </div>
-            <div className="px-6 py-4 border-t flex justify-end gap-3"><button onClick={onClose} className="px-4 py-2.5 text-gray-700 hover:bg-gray-100 rounded-xl">Cancel</button><button onClick={() => onSave({ title, category, content, sections: parsedSections })} disabled={!title.trim() || !content.trim()} className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white px-4 py-2.5 rounded-xl">{sop ? 'Save Changes' : 'Add SOP'}</button></div>
-          </div>
-        </div>
-      );
-    }
+    // ============================================================
+    // MODAL: GLOSSARY FORM
+    // ============================================================
 
-    function CategoryManagerModal({ categories, onClose, onSave }) {
-      const [localCategories, setLocalCategories] = useState([...categories]);
-      const [newCategory, setNewCategory] = useState('');
+    function GlossaryFormModal({ term, categories, onSave, onClose }) {
+      const [name, setName] = useState(term?.name || '');
+      const [type, setType] = useState(term?.type || 'abbreviation');
+      const [meaning, setMeaning] = useState(term?.meaning || '');
+      const [context, setContext] = useState(term?.context || '');
+      const [category, setCategory] = useState(term?.category || categories[0] || '');
+      const [customCategory, setCustomCategory] = useState('');
+
+      const canSave = name.trim() && meaning.trim() && (category || customCategory.trim());
+
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b flex items-center justify-between"><h2 className="text-lg font-semibold">Manage Categories</h2><button onClick={onClose} className="p-2 text-gray-400">✕</button></div>
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold">{term ? 'Edit Term' : 'Add Term'}</h2>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
             <div className="p-6 space-y-4">
-              <div className="flex gap-2"><input type="text" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && newCategory.trim()) { setLocalCategories([...localCategories, newCategory.trim()]); setNewCategory(''); } }} className="flex-1 px-4 py-2 border rounded-xl" placeholder="New category" /><button onClick={() => { if (newCategory.trim()) { setLocalCategories([...localCategories, newCategory.trim()]); setNewCategory(''); } }} className="bg-blue-500 text-white px-4 py-2 rounded-xl">Add</button></div>
-              <div className="space-y-2">{localCategories.map((cat) => <div key={cat} className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-xl"><span>{cat}</span><button onClick={() => setLocalCategories(localCategories.filter(c => c !== cat))} className="text-gray-400 hover:text-red-600">✕</button></div>)}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g., AOG" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                  <select value={type} onChange={(e) => setType(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                    <option value="abbreviation">Abbreviation</option>
+                    <option value="term">Term</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Meaning</label>
+                <input type="text" value={meaning} onChange={(e) => setMeaning(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g., Aircraft On Ground" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Context <span className="text-gray-400">(optional)</span></label>
+                <input type="text" value={context} onChange={(e) => setContext(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g., Highest priority for flight operations" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                <div className="flex gap-2">
+                  <select value={category} onChange={(e) => { setCategory(e.target.value); setCustomCategory(''); }} className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                    {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                    <option value="">-- New category --</option>
+                  </select>
+                  {!category && (
+                    <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="New category name" />
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="px-6 py-4 border-t flex justify-end gap-3"><button onClick={onClose} className="px-4 py-2.5 text-gray-700 hover:bg-gray-100 rounded-xl">Cancel</button><button onClick={() => { onSave(localCategories); onClose(); }} className="bg-blue-500 text-white px-4 py-2.5 rounded-xl">Save</button></div>
+            <div className="px-6 py-4 border-t flex justify-end gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button
+                onClick={() => onSave({ name, type, meaning, context: context || undefined, category: category || customCategory.trim() })}
+                disabled={!canSave}
+                className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+              >
+                {term ? 'Save Changes' : 'Add Term'}
+              </button>
+            </div>
           </div>
         </div>
       );
     }
+
+    // ============================================================
+    // ADMIN TAB: CONTACTS
+    // ============================================================
+
+    function AdminContactsTab({ contacts, onContactsUpdate }) {
+      const [editingContact, setEditingContact] = useState(null);
+      const [showForm, setShowForm] = useState(false);
+
+      const handleDelete = (id) => {
+        if (confirm('Delete this contact?')) {
+          onContactsUpdate(contacts.filter(c => c.id !== id));
+        }
+      };
+
+      const handleSave = (contactData) => {
+        if (editingContact) {
+          onContactsUpdate(contacts.map(c => c.id === editingContact.id ? { ...c, ...contactData } : c));
+        } else {
+          onContactsUpdate([...contacts, { ...contactData, id: `ct-${Date.now()}` }]);
+        }
+        setShowForm(false);
+        setEditingContact(null);
+      };
+
+      if (showForm || editingContact) {
+        return (
+          <ContactFormModal
+            contact={editingContact}
+            onSave={handleSave}
+            onClose={() => { setShowForm(false); setEditingContact(null); }}
+          />
+        );
+      }
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{contacts.length} contacts</p>
+            <button onClick={() => setShowForm(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add Contact</button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {contacts.map((contact) => (
+                <div key={contact.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div>
+                    <span className="font-medium text-gray-800 text-sm">{contact.name}</span>
+                    <span className="text-xs text-gray-400 ml-3">{contact.role}</span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingContact(contact)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(contact.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {contacts.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">No contacts yet. Add your first one.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // MODAL: CONTACT FORM
+    // ============================================================
+
+    function ContactFormModal({ contact, onSave, onClose }) {
+      const [name, setName] = useState(contact?.name || '');
+      const [role, setRole] = useState(contact?.role || '');
+      const [phone, setPhone] = useState(contact?.phone || '');
+      const [email, setEmail] = useState(contact?.email || '');
+
+      const canSave = name.trim() && role.trim();
+
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold">{contact ? 'Edit Contact' : 'Add Contact'}</h2>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="Full name" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                  <input type="text" value={role} onChange={(e) => setRole(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g., Logistics Manager" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                  <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="+45 12 34 56 78" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="name@catflyservice.dk" />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button
+                onClick={() => onSave({ name, role, phone, email })}
+                disabled={!canSave}
+                className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+              >
+                {contact ? 'Save Changes' : 'Add Contact'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // RENDER APP
+    // ============================================================
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
