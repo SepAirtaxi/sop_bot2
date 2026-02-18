@@ -705,28 +705,29 @@ Attach: U/S tag(s), Core exchange document(s), NIS document(s), AWB, Shipping in
         ).join('\n');
 
         if (isStepMode) {
-          return `You are the SOP Assistant for CAT Flyservice. You are currently guiding a user through a procedure STEP BY STEP.
+          return `You are the SOP Assistant for CAT Flyservice. Generate a COMPLETE step-by-step guide based on the SOPs provided.
 
-YOUR RESPONSE FORMAT IS CRITICAL. You must respond in this EXACT JSON format:
+YOUR RESPONSE MUST BE VALID JSON IN THIS EXACT FORMAT:
 {
-  "type": "step" | "question" | "complete",
-  "stepNumber": number or null,
-  "totalSteps": number or null,
-  "title": "Short step title",
-  "content": "The detailed instruction for this step. Use markdown for formatting.",
-  "tip": "Optional helpful tip" or null,
-  "question": "If type is question, the clarifying question to ask" or null,
-  "options": ["Option 1", "Option 2"] or null
+  "title": "Short procedure title",
+  "steps": [
+    {
+      "title": "Short step title",
+      "content": "Detailed instruction for this step. Use markdown formatting.",
+      "tip": "Optional helpful tip, or null"
+    }
+  ]
 }
 
 RULES:
-1. If you need more information before you can guide them, use type "question"
-2. When giving a step, use type "step" with stepNumber, totalSteps, title, and content
-3. When the process is complete, use type "complete" with a brief congratulatory title and summary content
-4. Each step should be ONE clear action - not multiple actions
-5. Keep instructions clear and simple for newcomers
-6. Include helpful tips when relevant
-7. For non-EU shipments, remember to include BOTH Import SOP and Goods Receiving SOP steps
+1. Return ALL steps in a single response — do NOT return one step at a time
+2. Follow the SOP content EXACTLY — do not rephrase, skip, or invent steps
+3. Each step should be ONE clear action
+4. Keep instructions clear and simple for newcomers
+5. Include helpful tips from the SOP when relevant
+6. When multiple SOPs are relevant (e.g. non-EU import requires BOTH the Import SOP and Goods Receiving SOP), combine them into one sequential guide
+7. Do NOT ask clarifying questions — give the complete generic procedure
+8. Use glossary terms where helpful to explain abbreviations
 
 AVAILABLE SOPS:
 ${sopSummaries}
@@ -1294,11 +1295,11 @@ ${contactsRef}`;
       ]);
       const [input, setInput] = useState('');
       const [isLoading, setIsLoading] = useState(false);
-      const [guidePanel, setGuidePanel] = useState(null); // { title, steps, currentStep, completedSteps }
+      const [guidePanel, setGuidePanel] = useState(null); // { title, steps[], currentIndex, completed }
       const [panelClosing, setPanelClosing] = useState(false);
-      const [pendingGuideQuestion, setPendingGuideQuestion] = useState(null);
       const messagesEndRef = useRef(null);
       const inputRef = useRef(null);
+      const lastQuestionRef = useRef('');
 
       const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1323,18 +1324,30 @@ ${contactsRef}`;
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
+        if (!isStepRequest) lastQuestionRef.current = text;
 
         try {
-          const mode = isStepRequest || guidePanel ? 'stepbystep' : 'documentation';
           const chatHistory = [...messages.filter(m => m.id !== 'welcome'), userMessage].map(m => ({
             type: m.type === 'user' ? 'user' : 'bot',
             content: m.content
           }));
 
-          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, mode);
+          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, isStepRequest ? 'stepbystep' : 'documentation');
 
-          if (mode === 'stepbystep' && response && typeof response === 'object') {
-            handleStepResponse(response, text);
+          if (isStepRequest && response && typeof response === 'object' && response.steps) {
+            // Got a full guide — open the panel
+            setGuidePanel({
+              title: response.title || lastQuestionRef.current || 'Procedure Guide',
+              steps: response.steps,
+              currentIndex: 0,
+              completed: false
+            });
+            const botMessage = {
+              id: `bot-${Date.now()}`,
+              type: 'bot',
+              content: `I've opened the step-by-step guide with **${response.steps.length} steps**. Follow along on the right side.`
+            };
+            setMessages(prev => [...prev, botMessage]);
           } else {
             const botContent = typeof response === 'string' ? response : (response?.content || 'I couldn\'t generate a response.');
             const botMessage = { id: `bot-${Date.now()}`, type: 'bot', content: botContent };
@@ -1347,97 +1360,41 @@ ${contactsRef}`;
           setIsLoading(false);
           inputRef.current?.focus();
         }
-      }, [messages, isLoading, sops, glossary, contacts, guidePanel]);
+      }, [messages, isLoading, sops, glossary, contacts]);
 
-      const handleStepResponse = useCallback((data, originalQuestion) => {
-        if (data.type === 'question') {
-          const botMessage = {
-            id: `bot-${Date.now()}`,
-            type: 'bot',
-            content: data.question || data.content || 'I need a bit more information.',
-            options: data.options || null
-          };
-          setMessages(prev => [...prev, botMessage]);
-          setPendingGuideQuestion(originalQuestion);
-        } else if (data.type === 'step') {
-          if (!guidePanel) {
-            setGuidePanel({
-              title: originalQuestion || 'Procedure Guide',
-              steps: [],
-              currentStep: data,
-              completedSteps: [],
-              totalSteps: data.totalSteps
-            });
-            const botMessage = {
-              id: `bot-${Date.now()}`,
-              type: 'bot',
-              content: `I've opened the step-by-step guide panel. Follow along on the right side.`
-            };
-            setMessages(prev => [...prev, botMessage]);
-          } else {
-            setGuidePanel(prev => ({
-              ...prev,
-              currentStep: data,
-              totalSteps: data.totalSteps || prev.totalSteps
-            }));
-          }
-        } else if (data.type === 'complete') {
-          if (guidePanel) {
-            setGuidePanel(prev => ({
-              ...prev,
-              currentStep: null,
-              completedSteps: prev.currentStep
-                ? [...prev.completedSteps, prev.currentStep]
-                : prev.completedSteps,
-              completed: true,
-              completionData: data
-            }));
-          }
-          const botMessage = {
-            id: `bot-${Date.now()}`,
-            type: 'bot',
-            content: data.content || 'You\'ve completed all the steps. Well done!'
-          };
-          setMessages(prev => [...prev, botMessage]);
-        } else {
-          const botMessage = {
-            id: `bot-${Date.now()}`,
-            type: 'bot',
-            content: data.content || typeof data === 'string' ? data : 'I couldn\'t parse the response.'
-          };
-          setMessages(prev => [...prev, botMessage]);
-        }
-      }, [guidePanel]);
-
-      const startGuide = useCallback((question) => {
-        sendMessage(question || 'Please guide me through this step by step.', true);
+      const startGuide = useCallback(() => {
+        const question = lastQuestionRef.current || 'Please guide me through this step by step.';
+        sendMessage(question, true);
       }, [sendMessage]);
 
       const nextStep = useCallback(() => {
-        if (!guidePanel?.currentStep) return;
-        setGuidePanel(prev => ({
-          ...prev,
-          completedSteps: [...prev.completedSteps, prev.currentStep],
-          currentStep: null
-        }));
-        sendMessage('Done with this step. What\'s next?', true);
-      }, [guidePanel, sendMessage]);
+        if (!guidePanel) return;
+        const nextIndex = guidePanel.currentIndex + 1;
+        if (nextIndex >= guidePanel.steps.length) {
+          setGuidePanel(prev => ({ ...prev, completed: true }));
+          const botMessage = {
+            id: `bot-${Date.now()}`,
+            type: 'bot',
+            content: 'You\'ve completed all the steps. Well done!'
+          };
+          setMessages(prev => [...prev, botMessage]);
+        } else {
+          setGuidePanel(prev => ({ ...prev, currentIndex: nextIndex }));
+        }
+      }, [guidePanel]);
 
       const askAboutStep = useCallback(() => {
-        if (!guidePanel?.currentStep) return;
-        const stepTitle = guidePanel.currentStep.title;
-        setInput(`I have a question about "${stepTitle}": `);
-        inputRef.current?.focus();
+        if (!guidePanel) return;
+        const step = guidePanel.steps[guidePanel.currentIndex];
+        if (step) {
+          setInput(`I have a question about "${step.title}": `);
+          inputRef.current?.focus();
+        }
       }, [guidePanel]);
 
       const handleSubmit = (e) => {
         e.preventDefault();
-        if (pendingGuideQuestion && input.trim()) {
-          sendMessage(input, true);
-          setPendingGuideQuestion(null);
-        } else {
-          sendMessage(input);
-        }
+        sendMessage(input);
       };
 
       const handleKeyDown = (e) => {
@@ -1462,27 +1419,15 @@ ${contactsRef}`;
         return (
           <React.Fragment>
             <div className="prose text-sm" dangerouslySetInnerHTML={{ __html: html }} />
-            {hasGuideOffer && (
+            {hasGuideOffer && !guidePanel && (
               <button
                 onClick={() => startGuide()}
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors"
+                disabled={isLoading}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 Guide me step-by-step
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
               </button>
-            )}
-            {msg.options && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {msg.options.map((opt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendMessage(opt, !!pendingGuideQuestion)}
-                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
             )}
           </React.Fragment>
         );
@@ -1582,11 +1527,9 @@ ${contactsRef}`;
     // ============================================================
 
     function GuidePanel({ guide, closing, onClose, onNextStep, onAskAboutStep }) {
-      const { title, currentStep, completedSteps, totalSteps, completed, completionData } = guide;
-
-      const stepCount = totalSteps || (completedSteps.length + (currentStep ? 1 : 0));
-      const currentStepNum = currentStep ? currentStep.stepNumber : (completed ? stepCount : 0);
-      const progressPercent = stepCount > 0 ? (completedSteps.length / stepCount) * 100 : 0;
+      const { title, steps, currentIndex, completed } = guide;
+      const currentStep = !completed ? steps[currentIndex] : null;
+      const isLastStep = currentIndex >= steps.length - 1;
       const [showCompleted, setShowCompleted] = useState(false);
 
       const renderContent = (md) => {
@@ -1602,7 +1545,7 @@ ${contactsRef}`;
               <div className="flex-1 mr-3">
                 <h2 className="font-semibold text-sm leading-snug line-clamp-2">{title}</h2>
                 <p className="text-emerald-200 text-xs mt-1">
-                  {completed ? 'Completed' : `Step ${currentStepNum} of ${stepCount}`}
+                  {completed ? 'Completed' : `Step ${currentIndex + 1} of ${steps.length}`}
                 </p>
               </div>
               <button onClick={onClose} className="p-1 hover:bg-emerald-700 rounded transition-colors flex-shrink-0">
@@ -1614,15 +1557,14 @@ ${contactsRef}`;
           {/* Progress Bar */}
           <div className="flex-shrink-0 bg-emerald-50 px-5 py-3">
             <div className="flex gap-1">
-              {Array.from({ length: stepCount }, (_, i) => (
+              {steps.map((_, i) => (
                 <div
                   key={i}
                   className={`h-1.5 flex-1 rounded-full transition-colors ${
-                    i < completedSteps.length
-                      ? 'bg-emerald-500'
-                      : i === completedSteps.length && !completed
-                        ? 'bg-emerald-300'
-                        : completed ? 'bg-emerald-500' : 'bg-gray-200'
+                    completed ? 'bg-emerald-500'
+                      : i < currentIndex ? 'bg-emerald-500'
+                      : i === currentIndex ? 'bg-emerald-300'
+                      : 'bg-gray-200'
                   }`}
                 />
               ))}
@@ -1632,7 +1574,7 @@ ${contactsRef}`;
           {/* Panel Content (scrollable) */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {/* Completed Steps (collapsible) */}
-            {completedSteps.length > 0 && (
+            {currentIndex > 0 && !completed && (
               <div className="mb-4">
                 <button
                   onClick={() => setShowCompleted(!showCompleted)}
@@ -1641,11 +1583,11 @@ ${contactsRef}`;
                   <svg className={`w-3 h-3 transition-transform ${showCompleted ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  <span>{completedSteps.length} completed step{completedSteps.length !== 1 ? 's' : ''}</span>
+                  <span>{currentIndex} completed step{currentIndex !== 1 ? 's' : ''}</span>
                 </button>
                 {showCompleted && (
                   <div className="mt-2 space-y-2">
-                    {completedSteps.map((step, i) => (
+                    {steps.slice(0, currentIndex).map((step, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
                         <div className="w-5 h-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -1664,10 +1606,19 @@ ${contactsRef}`;
                 <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">{completionData?.title || 'All done!'}</h3>
-                {completionData?.content && (
-                  <div className="prose text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: renderContent(completionData.content) }} />
-                )}
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">All done!</h3>
+                <p className="text-sm text-gray-500 mb-2">You've completed all {steps.length} steps.</p>
+                {/* Show all steps as completed */}
+                <div className="mt-4 text-left space-y-1.5">
+                  {steps.map((step, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <div className="w-5 h-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      </div>
+                      <span className="text-gray-500">{step.title}</span>
+                    </div>
+                  ))}
+                </div>
                 <button
                   onClick={onClose}
                   className="mt-6 px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors"
@@ -1679,8 +1630,8 @@ ${contactsRef}`;
 
             {/* Current Step */}
             {currentStep && !completed && (
-              <div>
-                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Step {currentStep.stepNumber}</p>
+              <div className="fade-in" key={currentIndex}>
+                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Step {currentIndex + 1}</p>
                 <h3 className="text-lg font-bold text-gray-900 mb-3">{currentStep.title}</h3>
                 <div className="prose text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: renderContent(currentStep.content) }} />
 
@@ -1695,13 +1646,6 @@ ${contactsRef}`;
                 )}
               </div>
             )}
-
-            {/* Waiting for next step (loading) */}
-            {!currentStep && !completed && (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            )}
           </div>
 
           {/* Panel Actions (bottom) */}
@@ -1711,7 +1655,7 @@ ${contactsRef}`;
                 onClick={onNextStep}
                 className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors mb-2"
               >
-                Done, next step
+                {isLastStep ? 'Complete' : 'Done, next step'}
               </button>
               <button
                 onClick={onAskAboutStep}
