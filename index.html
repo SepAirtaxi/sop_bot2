@@ -1324,14 +1324,14 @@ ${contactsRef}`;
         }, 300);
       }, []);
 
-      const sendMessage = useCallback(async (text, isStepRequest = false) => {
+      const sendMessage = useCallback(async (text) => {
         if (!text.trim() || isLoading) return;
 
         const userMessage = { id: `user-${Date.now()}`, type: 'user', content: text };
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
-        if (!isStepRequest) lastQuestionRef.current = text;
+        lastQuestionRef.current = text;
 
         try {
           const chatHistory = [...messages.filter(m => m.id !== 'welcome'), userMessage].map(m => ({
@@ -1339,12 +1339,37 @@ ${contactsRef}`;
             content: m.content
           }));
 
-          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, isStepRequest ? 'stepbystep' : 'documentation');
+          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, 'documentation');
+          const botContent = typeof response === 'string' ? response : (response?.content || 'I couldn\'t generate a response.');
+          const botMessage = { id: `bot-${Date.now()}`, type: 'bot', content: botContent };
+          setMessages(prev => [...prev, botMessage]);
+        } catch (error) {
+          const errorMessage = { id: `err-${Date.now()}`, type: 'bot', content: 'Sorry, I encountered an error. Please try again.' };
+          setMessages(prev => [...prev, errorMessage]);
+        } finally {
+          setIsLoading(false);
+          inputRef.current?.focus();
+        }
+      }, [messages, isLoading, sops, glossary, contacts]);
 
-          if (isStepRequest && response && typeof response === 'object' && response.steps) {
-            // Got a full guide — open the panel
+      const startGuide = useCallback(async () => {
+        if (isLoading) return;
+        setIsLoading(true);
+        const question = lastQuestionRef.current || 'Please guide me through this step by step.';
+
+        try {
+          const chatHistory = messages.filter(m => m.id !== 'welcome').map(m => ({
+            type: m.type === 'user' ? 'user' : 'bot',
+            content: m.content
+          }));
+          // Add the guide request as context without showing it in chat
+          chatHistory.push({ type: 'user', content: question });
+
+          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, 'stepbystep');
+
+          if (response && typeof response === 'object' && response.steps && response.steps.length > 0) {
             setGuidePanel({
-              title: response.title || lastQuestionRef.current || 'Procedure Guide',
+              title: response.title || question,
               steps: response.steps,
               currentIndex: 0,
               completed: false
@@ -1356,23 +1381,21 @@ ${contactsRef}`;
             };
             setMessages(prev => [...prev, botMessage]);
           } else {
-            const botContent = typeof response === 'string' ? response : (response?.content || 'I couldn\'t generate a response.');
-            const botMessage = { id: `bot-${Date.now()}`, type: 'bot', content: botContent };
+            const botMessage = {
+              id: `bot-${Date.now()}`,
+              type: 'bot',
+              content: 'Sorry, I couldn\'t generate a step-by-step guide for this. Try rephrasing your question.'
+            };
             setMessages(prev => [...prev, botMessage]);
           }
         } catch (error) {
-          const errorMessage = { id: `err-${Date.now()}`, type: 'bot', content: 'Sorry, I encountered an error. Please try again.' };
+          const errorMessage = { id: `err-${Date.now()}`, type: 'bot', content: 'Sorry, I encountered an error generating the guide. Please try again.' };
           setMessages(prev => [...prev, errorMessage]);
         } finally {
           setIsLoading(false);
           inputRef.current?.focus();
         }
       }, [messages, isLoading, sops, glossary, contacts]);
-
-      const startGuide = useCallback(() => {
-        const question = lastQuestionRef.current || 'Please guide me through this step by step.';
-        sendMessage(question, true);
-      }, [sendMessage]);
 
       const nextStep = useCallback(() => {
         if (!guidePanel) return;
