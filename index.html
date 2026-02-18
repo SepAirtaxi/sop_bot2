@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SOP Assistant - CAT Internal Tool</title>
+  <title>CAT Onboard</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes bounce {
@@ -426,7 +430,7 @@ Ship via:
 If you have to utilize our freight forwarder or we are collecting an order ourselves, you can use "SELF COLLECT" or "TO BE ADVISED".
 
 Ship to:
-In most cases when ordering parts for CAT, the standard value (CAT Flyservice) is correct and doesn't need to be changed. This will ensure delivery to Hangarvej B 2 in Roskilde.
+In most cases when ordering parts for CAT, the standard value (Copenhagen AirTaxi A/S) is correct and doesn't need to be changed. This will ensure delivery to Hangarvej B 2 in Roskilde.
 
 When ordering parts for Airseven, we might need to drop-ship the parts directly to the aircraft where GMT's mechanic team is located. In these cases, you should look for 'GMT' and then the correct airport code:
 - GMT BLL - Billund station
@@ -951,7 +955,7 @@ Review the returned parts and take the necessary action to return them to stock 
         ).join('\n\n---\n\n') : '';
 
         if (isStepMode) {
-          return `You are the SOP Assistant for CAT Flyservice. Generate a COMPLETE step-by-step guide based on the SOPs provided.
+          return `You are CAT, the onboarding assistant for Copenhagen AirTaxi A/S. Generate a COMPLETE step-by-step guide based on the SOPs provided.
 
 YOUR RESPONSE MUST BE VALID JSON IN THIS EXACT FORMAT:
 {
@@ -967,13 +971,14 @@ YOUR RESPONSE MUST BE VALID JSON IN THIS EXACT FORMAT:
 
 RULES:
 1. Return ALL steps in a single response — do NOT return one step at a time
-2. Follow the SOP content EXACTLY — do not rephrase, skip, or invent steps
+2. Follow the SOP and daily task content EXACTLY — do not rephrase, skip, or invent steps
 3. Each step should be ONE clear action
 4. Keep instructions clear and simple for newcomers
-5. Include helpful tips from the SOP when relevant
-6. When multiple SOPs are relevant (e.g. non-EU import requires BOTH the Import SOP and Goods Receiving SOP), combine them into one sequential guide
+5. Include helpful tips from the SOP or daily tasks when relevant
+6. When multiple SOPs or daily tasks are relevant, combine them into one sequential guide
 7. Do NOT ask clarifying questions — give the complete generic procedure
 8. Use glossary terms where helpful to explain abbreviations
+9. Also reference knowledge base articles when they provide relevant context
 
 AVAILABLE SOPS:
 ${sopSummaries}
@@ -987,14 +992,15 @@ ${dailyTasksRef ? `\nDAILY TASKS REFERENCE:\n${dailyTasksRef}` : ''}
 ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         }
 
-        return `You are the SOP Assistant for CAT Flyservice, a Danish aircraft maintenance company. You help new employees understand and follow company procedures. Keep all responses CONCISE and newcomer-friendly.
+        return `You are CAT, the onboarding assistant for Copenhagen AirTaxi A/S, a Danish aircraft maintenance company. You help new employees understand and follow company procedures. Keep all responses CONCISE and newcomer-friendly.
 
 RESPONSE RULES:
 
 1. PROCEDURAL QUESTIONS (how do I..., how to..., what's the process for..., steps to...):
    - Give a SHORT summary (2-4 sentences max) explaining what the procedure involves
-   - Name which SOP(s) are relevant, e.g. "This is covered in the **Goods Receiving** SOP"
-   - If multiple SOPs apply, briefly explain why, e.g. "Since the USA is non-EU, this involves both **Import and End-Use Certification** and **Goods Receiving**"
+   - Name which SOP(s) or daily task(s) are relevant, e.g. "This is covered in the **Goods Receiving** SOP" or "See the **Monitor Part Requests** daily task"
+   - If multiple SOPs or daily tasks apply, briefly explain why
+   - Also check the Knowledge Base for relevant reference articles
    - Do NOT include the full procedure steps or quote large sections
    - ALWAYS end your response with this exact tag on its own line:
    %%GUIDE_OFFER%%
@@ -1003,6 +1009,8 @@ RESPONSE RULES:
    - Answer directly and concisely (1-3 sentences)
    - Use the glossary for terms and abbreviations
    - Use the contacts directory for "who handles X" questions
+   - Use daily tasks for questions about recurring responsibilities and routines
+   - Use the knowledge base for reference information and how-to articles
    - Do NOT include %%GUIDE_OFFER%% for these
 
 3. FOLLOW-UP QUESTIONS (asked while a guide is open):
@@ -1485,8 +1493,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold text-gray-800">SOP Assistant</h1>
-              <p className="text-gray-500 mt-2">Sign in to access procedures</p>
+              <h1 className="text-2xl font-bold text-gray-800">CAT Onboard</h1>
+              <p className="text-gray-500 mt-2">Sign in to get started</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -1508,7 +1516,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
-            <p className="text-center text-gray-400 text-sm mt-6">CAT Internal Tool</p>
+            <p className="text-center text-gray-400 text-sm mt-6">Copenhagen AirTaxi A/S</p>
           </div>
         </div>
       );
@@ -1592,8 +1600,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </svg>
                 </div>
                 <div>
-                  <div className="font-semibold text-gray-800 text-sm">SOP Assistant</div>
-                  <div className="text-xs text-gray-400">CAT Flyservice</div>
+                  <div className="font-semibold text-gray-800 text-sm">CAT Onboard</div>
+                  <div className="text-xs text-gray-400">Copenhagen AirTaxi A/S</div>
                 </div>
               </div>
             </div>
@@ -1670,7 +1678,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
     function AskCATPage({ sops, glossary, contacts, dailyTasks = [], knowledgeBase = [] }) {
       const [messages, setMessages] = useState([
-        { id: 'welcome', type: 'bot', content: 'Hello! I\'m your SOP assistant. Ask me anything about procedures, terms, or contacts at CAT Flyservice.' }
+        { id: 'welcome', type: 'bot', content: 'Hello! I\'m CAT, your onboarding assistant. Ask me anything about procedures, daily tasks, terms, or contacts at Copenhagen AirTaxi A/S.' }
       ]);
       const [input, setInput] = useState('');
       const [isLoading, setIsLoading] = useState(false);
