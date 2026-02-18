@@ -173,6 +173,18 @@
       async saveContact(data) { return this.add('contacts', data); },
       async updateContact(id, data) { return this.update('contacts', id, data); },
       async deleteContact(id) { return this.remove('contacts', id); },
+
+      // -- Daily Tasks-specific --
+      async getDailyTasks() { return this.getAll('dailyTasks'); },
+      async saveDailyTask(data) { return this.add('dailyTasks', data); },
+      async updateDailyTask(id, data) { return this.update('dailyTasks', id, data); },
+      async deleteDailyTask(id) { return this.remove('dailyTasks', id); },
+
+      // -- Knowledge Base-specific --
+      async getKnowledgeBase() { return this.getAll('knowledgeBase'); },
+      async saveKBArticle(data) { return this.add('knowledgeBase', data); },
+      async updateKBArticle(id, data) { return this.update('knowledgeBase', id, data); },
+      async deleteKBArticle(id) { return this.remove('knowledgeBase', id); },
     };
 
     // ============================================================
@@ -200,6 +212,20 @@
       },
       saveContacts: (contacts) => {
         localStorage.setItem('sop_bot_contacts', JSON.stringify(contacts));
+      },
+      getDailyTasks: () => {
+        const stored = localStorage.getItem('sop_bot_daily_tasks');
+        return stored ? JSON.parse(stored) : null;
+      },
+      saveDailyTasks: (tasks) => {
+        localStorage.setItem('sop_bot_daily_tasks', JSON.stringify(tasks));
+      },
+      getKnowledgeBase: () => {
+        const stored = localStorage.getItem('sop_bot_knowledge_base');
+        return stored ? JSON.parse(stored) : null;
+      },
+      saveKnowledgeBase: (articles) => {
+        localStorage.setItem('sop_bot_knowledge_base', JSON.stringify(articles));
       },
       getCategories: () => {
         const stored = localStorage.getItem('sop_bot_categories');
@@ -651,6 +677,217 @@ Attach: U/S tag(s), Core exchange document(s), NIS document(s), AWB, Shipping in
     const DEFAULT_CATEGORIES = ['Systems', 'Logistics', 'Purchasing'];
 
     // ============================================================
+    // DEFAULT DAILY TASKS DATA
+    // ============================================================
+
+    const DEFAULT_DAILY_TASKS = [
+      {
+        id: 'dt-1',
+        title: 'Monitor Part Requests',
+        category: 'Sourcing',
+        updatedAt: new Date().toISOString(),
+        content: `Part requests come from two sources and should be checked regularly throughout the day.
+
+### Internal Requests
+
+Internal requests are parts requested by our own mechanics directly in AMS.
+
+1. **Open AMS.**
+2. **Navigate** to Inventory Manager → Requisition List.
+3. **Sort** by clicking the **Req. #** column header to show the newest requests at the top.
+4. **Review and action** any new requests.
+
+### External Requests
+
+External requests come from external customers or satellite locations via the SharePoint requisition list.
+
+1. **Open** the requisition list via SharePoint.
+2. **Check** for new requests that have not been actioned.
+3. **Mark** the **Sourcing** column for any new requests so colleagues know you have initiated sourcing.`
+      },
+      {
+        id: 'dt-2',
+        title: 'Non-Aircraft Item Requests',
+        category: 'Sourcing',
+        updatedAt: new Date().toISOString(),
+        content: `Non-aircraft items include tools, consumables, materials, and clothing. These use a separate requisition form on SharePoint, and notifications arrive in the shared email inbox when new requests are submitted.
+
+### Approved Suppliers
+
+Always order non-aircraft items from approved suppliers. We have VAT-exempt purchasing accounts with the following:
+
+- DMT Værktøj
+- Würth
+- Biltema
+- Stark
+- Lomax
+
+> **Note:** Mechanics often include links to specific products they found online. If our approved suppliers don't carry that exact item, liaise with the requester to find an acceptable alternative from our approved supplier list.
+
+After actioning a request, update the ordered status and add a brief comment with the current status.`
+      },
+      {
+        id: 'dt-3',
+        title: 'Part Sourcing and Procurement',
+        category: 'Sourcing',
+        updatedAt: new Date().toISOString(),
+        content: `When a part request needs action, the first step is to investigate availability and cost.
+
+### Sourcing Methods
+
+There are several ways to locate parts:
+
+- **ILS/Partsbase** – online parts marketplaces
+- **AMS order history** – check previous purchases for the same part number
+- **Colleagues** – ask the team which suppliers may carry the part
+
+> **Note:** Some parts are manufacturer-exclusive, meaning only the OEM can quote or sell them. In these cases, lead time and cost are typically fixed, and maintenance must be planned accordingly.
+
+### Procurement Decision Factors
+
+When multiple suppliers are available, consider the following factors to maximize efficiency and minimize transit time and shipping costs:
+
+| Factor | Question |
+|--------|----------|
+| Item lines | How many item lines do I need? |
+| Quantity | What quantity/quantities do I need? |
+| Deadline | What is my deadline? |
+| Stock | Are the parts fully or partially in stock? |
+| Lead time | What is the lead time? |
+| Location | Where is the supplier located? |
+| Shipping | Does the item require non-standard shipping? |
+
+### Procurement of Contracted Components
+
+This section applies specifically to parts ordered for Airseven aircraft.
+
+Airseven has contractual agreements covering most rotable components:
+
+| Supplier | Coverage |
+|----------|----------|
+| Aerotron Ltd. | Vast majority of rotable components (with some exceptions) |
+| TP Aerospace | All wheels and brakes for the Airseven fleet |
+
+> **Tip:** If you're unsure whether a component is covered by the Aerotron contract, contact our Aerotron representative or check AMS order history for prior purchases.
+
+> **Important:** We have a consignment stock of more than 40 components for Airseven. Always check AMS inventory before procuring via Aerotron. If you forget, Aerotron will notify us if a unit is already in stock.`
+      },
+      {
+        id: 'dt-4',
+        title: 'Receiving Goods',
+        category: 'Warehouse',
+        updatedAt: new Date().toISOString(),
+        content: `Incoming shipments arrive almost daily. Some are urgent and task-related, while others are stock replenishment.
+
+| Priority | Type | Action |
+|----------|------|--------|
+| High | Parts required for an active task | Receive as quickly as possible |
+| Lower | Stock replenishment items | Receive when time permits, but don't neglect entirely |
+
+> **Important:** The incoming shipment shelf must be cleared by the last day of each month (30th/31st). This is required for proper monthly turnover reporting.
+
+> **Note:** Some shipments are delivered to headquarters landside. The office will notify us when they have received a shipment for us to collect.`
+      },
+      {
+        id: 'dt-5',
+        title: 'Shipping Goods',
+        category: 'Warehouse',
+        updatedAt: new Date().toISOString(),
+        content: `Outgoing shipments vary in urgency. Always prioritize task-related shipments first.
+
+Common reasons for outgoing shipments include:
+
+- Line station requirements
+- Component repair/return
+- External sales
+- Document shipments
+
+Always ensure appropriate cushioning and packaging. Depending on parcel size, quantity, and destination, either book a standard courier solution or contact our freight agent.`
+      },
+      {
+        id: 'dt-6',
+        title: 'Checking for Expired and Overdue Parts',
+        category: 'Compliance',
+        updatedAt: new Date().toISOString(),
+        content: `Parts and tools with time limits must be monitored and removed from inventory if the date is exceeded.
+
+### Viewing Time-Limited Items
+
+1. **Open AMS.**
+2. **Navigate** to Inventory Manager → Time Expired Part List.
+3. **Sort by date** to see the parts closest to expiry at the top.
+
+### Types of Time Limitations
+
+| Limitation Type | Action Required |
+|-----------------|-----------------|
+| Calibration cycles | Remove from inventory, send for calibration |
+| Inspection / test / overhaul | Remove from inventory, arrange appropriate service |
+| Shelf life (e.g., o-rings, first aid kits, lubricants) | Destroy/discard and remove from system — cannot be extended |
+
+> **Note:** All tools requiring calibration have 12 months of validity. We typically send tools for calibration in Q1, staggered to avoid depleting the tool pool entirely.`
+      },
+      {
+        id: 'dt-7',
+        title: 'Emails',
+        category: 'Communication',
+        updatedAt: new Date().toISOString(),
+        content: `We receive many emails requiring different actions. Remember to check both your personal inbox and the shared department inbox regularly, and take action where necessary.`
+      },
+      {
+        id: 'dt-8',
+        title: 'Processing Core Units and Return Shipments',
+        category: 'Maintenance',
+        updatedAt: new Date().toISOString(),
+        content: `This section applies specifically to Airseven maintenance tasks.
+
+Airseven's mechanic crew often works nights and weekends. They send task reports to our shared email inbox after completing each task.
+
+1. **Review** task reports in the shared inbox when you clock in.
+2. **Look for red tags** in the paperwork. A red tag indicates a component has been replaced and logistics action is required.
+3. **Process** the core return according to the relevant procedure.
+
+> **Important:** 95% of core-related tasks involve components from Aerotron or TP Aerospace. We have contractual obligations to return unserviceable units promptly — prioritize red tag items in the inbox.`
+      },
+      {
+        id: 'dt-9',
+        title: 'Processing Green Tag Units',
+        category: 'Maintenance',
+        updatedAt: new Date().toISOString(),
+        content: `We have an in-house shop for batteries, magnetos, and wheels. When mechanics complete a repair, they place the serviceable component in the warehouse.
+
+Our task is to:
+
+1. **Create** the component record in AMS.
+2. **Put it on stock** in the correct warehouse location.`
+      },
+      {
+        id: 'dt-10',
+        title: 'Warehouse and Facility Upkeep',
+        category: 'Warehouse',
+        updatedAt: new Date().toISOString(),
+        content: `After periods of heavy workload, the warehouse or office may become disorganized. When time permits, take the opportunity to clean up and restore order.
+
+Upkeep tasks include:
+
+- Archive or properly store any documents left out in the open
+- Sort packing materials and boxes — decide what to keep and what to discard
+- General tidiness in the workspace
+
+> **Tip:** Physical clutter can lead to lost paperwork and frustration for colleagues. Maintaining a tidy environment helps everyone work more effectively.`
+      },
+      {
+        id: 'dt-11',
+        title: 'Return Surplus Parts to Stock',
+        category: 'Warehouse',
+        updatedAt: new Date().toISOString(),
+        content: `Check the **Return To Stock** box from Hangar 5. This box contains surplus parts from completed tasks — mechanics sometimes don't use all allocated parts.
+
+Review the returned parts and take the necessary action to return them to stock in the warehouse.`
+      }
+    ];
+
+    // ============================================================
     // DEFAULT GLOSSARY DATA
     // ============================================================
 
@@ -692,7 +929,7 @@ Attach: U/S tag(s), Core exchange document(s), NIS document(s), AWB, Shipping in
     // ============================================================
 
     const GeminiService = {
-      buildSystemPrompt: (sops, glossary, contacts, mode, isStepMode = false) => {
+      buildSystemPrompt: (sops, glossary, contacts, mode, isStepMode = false, dailyTasks = [], knowledgeBase = []) => {
         const sopSummaries = sops.map(sop =>
           `## ${sop.title} (Category: ${sop.category})\n${sop.content}`
         ).join('\n\n---\n\n');
@@ -704,6 +941,14 @@ Attach: U/S tag(s), Core exchange document(s), NIS document(s), AWB, Shipping in
         const contactsRef = contacts.map(c =>
           `- **${c.name}** — ${c.role}${c.phone ? ', Phone: ' + c.phone : ''}${c.email ? ', Email: ' + c.email : ''}`
         ).join('\n');
+
+        const dailyTasksRef = dailyTasks.length > 0 ? dailyTasks.map(dt =>
+          `## ${dt.title} (Category: ${dt.category})\n${dt.content}`
+        ).join('\n\n---\n\n') : '';
+
+        const kbRef = knowledgeBase.length > 0 ? knowledgeBase.map(kb =>
+          `## ${kb.title} (Category: ${kb.category})\n${kb.content}`
+        ).join('\n\n---\n\n') : '';
 
         if (isStepMode) {
           return `You are the SOP Assistant for CAT Flyservice. Generate a COMPLETE step-by-step guide based on the SOPs provided.
@@ -737,7 +982,9 @@ GLOSSARY REFERENCE:
 ${glossaryRef}
 
 CONTACTS DIRECTORY:
-${contactsRef}`;
+${contactsRef}
+${dailyTasksRef ? `\nDAILY TASKS REFERENCE:\n${dailyTasksRef}` : ''}
+${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         }
 
         return `You are the SOP Assistant for CAT Flyservice, a Danish aircraft maintenance company. You help new employees understand and follow company procedures. Keep all responses CONCISE and newcomer-friendly.
@@ -776,12 +1023,14 @@ GLOSSARY REFERENCE:
 ${glossaryRef}
 
 CONTACTS DIRECTORY:
-${contactsRef}`;
+${contactsRef}
+${dailyTasksRef ? `\nDAILY TASKS REFERENCE:\n${dailyTasksRef}` : ''}
+${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       },
 
-      chat: async (messages, sops, glossary, contacts, mode) => {
+      chat: async (messages, sops, glossary, contacts, mode, dailyTasks = [], knowledgeBase = []) => {
         const isStepMode = mode === 'stepbystep';
-        const systemPrompt = GeminiService.buildSystemPrompt(sops, glossary, contacts, mode, isStepMode);
+        const systemPrompt = GeminiService.buildSystemPrompt(sops, glossary, contacts, mode, isStepMode, dailyTasks, knowledgeBase);
 
         const geminiMessages = messages.map(msg => ({
           role: msg.type === 'user' ? 'user' : 'model',
@@ -832,6 +1081,8 @@ ${contactsRef}`;
     const NAV_ITEMS = [
       { id: 'ask-cat', label: 'Ask CAT', icon: 'chat' },
       { id: 'sop-archive', label: 'SOP Archive', icon: 'document' },
+      { id: 'daily-tasks', label: 'Daily Tasks', icon: 'checklist' },
+      { id: 'knowledge-base', label: 'Knowledge Base', icon: 'lightbulb' },
       { id: 'glossary', label: 'Glossary', icon: 'book' },
       { id: 'contacts', label: 'Contacts', icon: 'people' },
     ];
@@ -846,6 +1097,8 @@ ${contactsRef}`;
         document: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
         book: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
         people: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+        checklist: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+        lightbulb: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
         admin: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
         logout: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
       };
@@ -862,13 +1115,15 @@ ${contactsRef}`;
       const [categories, setCategories] = useState([]);
       const [glossary, setGlossary] = useState([]);
       const [contacts, setContacts] = useState([]);
+      const [dailyTasks, setDailyTasks] = useState([]);
+      const [knowledgeBase, setKnowledgeBase] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
       const [dataSource, setDataSource] = useState(null); // 'firestore' | 'local'
       const [dataError, setDataError] = useState(null);
 
       useEffect(() => {
         const init = async () => {
-          let loadedSops, loadedGlossary, loadedContacts;
+          let loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase;
 
           // Try Firestore first
           if (db) {
@@ -876,6 +1131,8 @@ ${contactsRef}`;
               loadedSops = await FirestoreService.getSOPs();
               loadedGlossary = await FirestoreService.getGlossary();
               loadedContacts = await FirestoreService.getContacts();
+              loadedDailyTasks = await FirestoreService.getDailyTasks();
+              loadedKnowledgeBase = await FirestoreService.getKnowledgeBase();
 
               // Seed defaults if collections are empty (first-time setup)
               if (loadedSops.length === 0) {
@@ -890,18 +1147,27 @@ ${contactsRef}`;
                 await FirestoreService.seedCollection('contacts', INITIAL_CONTACTS);
                 loadedContacts = INITIAL_CONTACTS;
               }
+              if (loadedDailyTasks.length === 0) {
+                await FirestoreService.seedCollection('dailyTasks', DEFAULT_DAILY_TASKS);
+                loadedDailyTasks = DEFAULT_DAILY_TASKS;
+              }
+              // Knowledge Base starts empty — no seeding needed
 
               setDataSource('firestore');
               // Cache to localStorage
               LocalStorage.saveSOPs(loadedSops);
               LocalStorage.saveGlossary(loadedGlossary);
               LocalStorage.saveContacts(loadedContacts);
+              LocalStorage.saveDailyTasks(loadedDailyTasks);
+              LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
             } catch (error) {
               console.warn('Firestore unavailable, falling back to localStorage:', error);
               setDataError('Could not connect to cloud database. Using local data.');
               loadedSops = null;
               loadedGlossary = null;
               loadedContacts = null;
+              loadedDailyTasks = null;
+              loadedKnowledgeBase = null;
             }
           }
 
@@ -919,10 +1185,20 @@ ${contactsRef}`;
             loadedContacts = LocalStorage.getContacts() || INITIAL_CONTACTS;
             LocalStorage.saveContacts(loadedContacts);
           }
+          if (!loadedDailyTasks) {
+            loadedDailyTasks = LocalStorage.getDailyTasks() || DEFAULT_DAILY_TASKS;
+            LocalStorage.saveDailyTasks(loadedDailyTasks);
+          }
+          if (!loadedKnowledgeBase) {
+            loadedKnowledgeBase = LocalStorage.getKnowledgeBase() || [];
+            LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
+          }
 
           setSops(loadedSops);
           setGlossary(loadedGlossary);
           setContacts(loadedContacts);
+          setDailyTasks(loadedDailyTasks);
+          setKnowledgeBase(loadedKnowledgeBase);
 
           let loadedCategories = LocalStorage.getCategories();
           if (!loadedCategories) {
@@ -1050,6 +1326,76 @@ ${contactsRef}`;
         LocalStorage.saveContacts(updated);
       };
 
+      // -- Daily Tasks handlers --
+      const handleDailyTasksUpdate = (newTasks) => {
+        setDailyTasks(newTasks);
+        LocalStorage.saveDailyTasks(newTasks);
+      };
+
+      const handleDailyTaskCreate = async (taskData) => {
+        const now = new Date().toISOString();
+        let newId = `dt-${Date.now()}`;
+        try {
+          const firestoreId = await FirestoreService.saveDailyTask(taskData);
+          if (firestoreId) newId = firestoreId;
+        } catch (e) { console.warn('Firestore create failed:', e); }
+        const newTask = { ...taskData, id: newId, createdAt: now, updatedAt: now };
+        const updated = [...dailyTasks, newTask];
+        setDailyTasks(updated);
+        LocalStorage.saveDailyTasks(updated);
+        return newId;
+      };
+
+      const handleDailyTaskUpdate = async (id, taskData) => {
+        const now = new Date().toISOString();
+        try { await FirestoreService.updateDailyTask(id, taskData); } catch (e) { console.warn('Firestore update failed:', e); }
+        const updated = dailyTasks.map(t => t.id === id ? { ...t, ...taskData, updatedAt: now } : t);
+        setDailyTasks(updated);
+        LocalStorage.saveDailyTasks(updated);
+      };
+
+      const handleDailyTaskDelete = async (id) => {
+        try { await FirestoreService.deleteDailyTask(id); } catch (e) { console.warn('Firestore delete failed:', e); }
+        const updated = dailyTasks.filter(t => t.id !== id);
+        setDailyTasks(updated);
+        LocalStorage.saveDailyTasks(updated);
+      };
+
+      // -- Knowledge Base handlers --
+      const handleKBUpdate = (newArticles) => {
+        setKnowledgeBase(newArticles);
+        LocalStorage.saveKnowledgeBase(newArticles);
+      };
+
+      const handleKBCreate = async (articleData) => {
+        const now = new Date().toISOString();
+        let newId = `kb-${Date.now()}`;
+        try {
+          const firestoreId = await FirestoreService.saveKBArticle(articleData);
+          if (firestoreId) newId = firestoreId;
+        } catch (e) { console.warn('Firestore create failed:', e); }
+        const newArticle = { ...articleData, id: newId, createdAt: now, updatedAt: now };
+        const updated = [...knowledgeBase, newArticle];
+        setKnowledgeBase(updated);
+        LocalStorage.saveKnowledgeBase(updated);
+        return newId;
+      };
+
+      const handleKBArticleUpdate = async (id, articleData) => {
+        const now = new Date().toISOString();
+        try { await FirestoreService.updateKBArticle(id, articleData); } catch (e) { console.warn('Firestore update failed:', e); }
+        const updated = knowledgeBase.map(a => a.id === id ? { ...a, ...articleData, updatedAt: now } : a);
+        setKnowledgeBase(updated);
+        LocalStorage.saveKnowledgeBase(updated);
+      };
+
+      const handleKBDelete = async (id) => {
+        try { await FirestoreService.deleteKBArticle(id); } catch (e) { console.warn('Firestore delete failed:', e); }
+        const updated = knowledgeBase.filter(a => a.id !== id);
+        setKnowledgeBase(updated);
+        LocalStorage.saveKnowledgeBase(updated);
+      };
+
       const handleCategoriesUpdate = (newCategories) => {
         setCategories(newCategories);
         LocalStorage.saveCategories(newCategories);
@@ -1075,6 +1421,8 @@ ${contactsRef}`;
           categories={categories}
           glossary={glossary}
           contacts={contacts}
+          dailyTasks={dailyTasks}
+          knowledgeBase={knowledgeBase}
           dataSource={dataSource}
           dataError={dataError}
           onDismissError={() => setDataError(null)}
@@ -1091,6 +1439,14 @@ ${contactsRef}`;
           onContactCreate={handleContactCreate}
           onContactUpdate={handleContactUpdate}
           onContactDelete={handleContactDelete}
+          onDailyTasksUpdate={handleDailyTasksUpdate}
+          onDailyTaskCreate={handleDailyTaskCreate}
+          onDailyTaskUpdate={handleDailyTaskUpdate}
+          onDailyTaskDelete={handleDailyTaskDelete}
+          onKBUpdate={handleKBUpdate}
+          onKBCreate={handleKBCreate}
+          onKBArticleUpdate={handleKBArticleUpdate}
+          onKBDelete={handleKBDelete}
           onLogout={handleLogout}
         />
       );
@@ -1163,20 +1519,27 @@ ${contactsRef}`;
     // ============================================================
 
     function AppShell(props) {
-      const { sops, categories, glossary, contacts, dataSource, dataError, onDismissError,
+      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase,
+        dataSource, dataError, onDismissError,
         onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
         onCategoriesUpdate,
         onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
         onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
+        onDailyTasksUpdate, onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
+        onKBUpdate, onKBCreate, onKBArticleUpdate, onKBDelete,
         onLogout } = props;
       const [currentPage, setCurrentPage] = useState('ask-cat');
 
       const renderPage = () => {
         switch (currentPage) {
           case 'ask-cat':
-            return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} />;
+            return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} />;
           case 'sop-archive':
             return <SOPArchivePage sops={sops} onNavigate={setCurrentPage} />;
+          case 'daily-tasks':
+            return <DailyTasksPage dailyTasks={dailyTasks} onNavigate={setCurrentPage} />;
+          case 'knowledge-base':
+            return <KnowledgeBasePage knowledgeBase={knowledgeBase} onNavigate={setCurrentPage} />;
           case 'glossary':
             return <GlossaryPage glossary={glossary} />;
           case 'contacts':
@@ -1188,6 +1551,8 @@ ${contactsRef}`;
                 categories={categories}
                 glossary={glossary}
                 contacts={contacts}
+                dailyTasks={dailyTasks}
+                knowledgeBase={knowledgeBase}
                 onSopsUpdate={onSopsUpdate}
                 onSopCreate={onSopCreate}
                 onSopUpdate={onSopUpdate}
@@ -1201,10 +1566,16 @@ ${contactsRef}`;
                 onContactCreate={onContactCreate}
                 onContactUpdate={onContactUpdate}
                 onContactDelete={onContactDelete}
+                onDailyTaskCreate={onDailyTaskCreate}
+                onDailyTaskUpdate={onDailyTaskUpdate}
+                onDailyTaskDelete={onDailyTaskDelete}
+                onKBCreate={onKBCreate}
+                onKBArticleUpdate={onKBArticleUpdate}
+                onKBDelete={onKBDelete}
               />
             );
           default:
-            return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} />;
+            return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} />;
         }
       };
 
@@ -1297,7 +1668,7 @@ ${contactsRef}`;
     // PAGE: ASK CAT (Chat + Inline Wizard)
     // ============================================================
 
-    function AskCATPage({ sops, glossary, contacts }) {
+    function AskCATPage({ sops, glossary, contacts, dailyTasks = [], knowledgeBase = [] }) {
       const [messages, setMessages] = useState([
         { id: 'welcome', type: 'bot', content: 'Hello! I\'m your SOP assistant. Ask me anything about procedures, terms, or contacts at CAT Flyservice.' }
       ]);
@@ -1331,7 +1702,7 @@ ${contactsRef}`;
             type: m.type === 'user' ? 'user' : 'bot',
             content: m.content
           }));
-          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, 'documentation');
+          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, 'documentation', dailyTasks, knowledgeBase);
           const botContent = typeof response === 'string' ? response : (response?.content || 'I couldn\'t generate a response.');
           setMessages(prev => [...prev, { id: `bot-${Date.now()}`, type: 'bot', content: botContent }]);
         } catch (error) {
@@ -1340,7 +1711,7 @@ ${contactsRef}`;
           setIsLoading(false);
           inputRef.current?.focus();
         }
-      }, [messages, isLoading, sops, glossary, contacts]);
+      }, [messages, isLoading, sops, glossary, contacts, dailyTasks, knowledgeBase]);
 
       // -- Start step-by-step guide --
       const startGuide = useCallback(async () => {
@@ -1354,7 +1725,7 @@ ${contactsRef}`;
             content: m.content
           }));
           chatHistory.push({ type: 'user', content: question });
-          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, 'stepbystep');
+          const response = await GeminiService.chat(chatHistory, sops, glossary, contacts, 'stepbystep', dailyTasks, knowledgeBase);
 
           if (response && typeof response === 'object' && response.steps && response.steps.length > 0) {
             setGuide({
@@ -1372,7 +1743,7 @@ ${contactsRef}`;
         } finally {
           setIsLoading(false);
         }
-      }, [messages, isLoading, sops, glossary, contacts]);
+      }, [messages, isLoading, sops, glossary, contacts, dailyTasks, knowledgeBase]);
 
       // -- Wizard step navigation (all local, no API) --
       const nextStep = useCallback(() => {
@@ -1809,6 +2180,281 @@ ${contactsRef}`;
     }
 
     // ============================================================
+    // PAGE: DAILY TASKS
+    // ============================================================
+
+    function DailyTasksPage({ dailyTasks, onNavigate }) {
+      const [selectedTaskId, setSelectedTaskId] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const contentRef = useRef(null);
+
+      const filteredTasks = useMemo(() => {
+        return dailyTasks.filter(task => {
+          return !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.category.toLowerCase().includes(searchQuery.toLowerCase());
+        });
+      }, [dailyTasks, searchQuery]);
+
+      const selectedTask = useMemo(() => {
+        return dailyTasks.find(t => t.id === selectedTaskId) || null;
+      }, [dailyTasks, selectedTaskId]);
+
+      useEffect(() => {
+        if (contentRef.current) contentRef.current.scrollTop = 0;
+      }, [selectedTaskId]);
+
+      const renderContent = (content) => {
+        try {
+          const html = marked.parse(content);
+          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+        } catch {
+          return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
+        }
+      };
+
+      return (
+        <div className="h-full flex">
+          {/* Left Panel — Task List */}
+          <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">Daily Tasks</h2>
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Task List */}
+            <div className="flex-1 overflow-y-auto">
+              {filteredTasks.length === 0 ? (
+                <div className="p-6 text-center">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-sm text-gray-400">No tasks found</p>
+                </div>
+              ) : (
+                filteredTasks.map((task) => {
+                  const isSelected = task.id === selectedTaskId;
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => setSelectedTaskId(task.id)}
+                      className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 border-l-[3px] border-l-blue-500'
+                          : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
+                        {task.title}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{task.category}</div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
+              <p className="text-xs text-gray-400">{filteredTasks.length} of {dailyTasks.length} tasks</p>
+            </div>
+          </div>
+
+          {/* Right Panel — Task Content */}
+          <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
+            {!selectedTask ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                  <NavIcon name="checklist" className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-500 mb-1">Select a task to view</h3>
+                <p className="text-sm text-gray-400">Choose a daily task from the list to read its details</p>
+              </div>
+            ) : (
+              <div className="max-w-5xl mx-auto px-8 py-8">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
+                      {selectedTask.category}
+                    </span>
+                    <h1 className="text-2xl font-bold text-gray-900">{selectedTask.title}</h1>
+                  </div>
+                  <button
+                    onClick={() => onNavigate('ask-cat')}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0 ml-4"
+                  >
+                    <NavIcon name="chat" className="w-4 h-4 text-white" />
+                    Ask CAT about this
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
+                  {renderContent(selectedTask.content)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // PAGE: KNOWLEDGE BASE
+    // ============================================================
+
+    function KnowledgeBasePage({ knowledgeBase, onNavigate }) {
+      const [selectedArticleId, setSelectedArticleId] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [activeCategory, setActiveCategory] = useState('All');
+      const contentRef = useRef(null);
+
+      const categories = useMemo(() => {
+        const unique = [...new Set(knowledgeBase.map(a => a.category))];
+        return ['All', ...unique.sort()];
+      }, [knowledgeBase]);
+
+      const filteredArticles = useMemo(() => {
+        return knowledgeBase.filter(article => {
+          const matchesSearch = !searchQuery || article.title.toLowerCase().includes(searchQuery.toLowerCase());
+          const matchesCategory = activeCategory === 'All' || article.category === activeCategory;
+          return matchesSearch && matchesCategory;
+        });
+      }, [knowledgeBase, searchQuery, activeCategory]);
+
+      const selectedArticle = useMemo(() => {
+        return knowledgeBase.find(a => a.id === selectedArticleId) || null;
+      }, [knowledgeBase, selectedArticleId]);
+
+      useEffect(() => {
+        if (contentRef.current) contentRef.current.scrollTop = 0;
+      }, [selectedArticleId]);
+
+      const renderContent = (content) => {
+        try {
+          const html = marked.parse(content);
+          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+        } catch {
+          return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
+        }
+      };
+
+      return (
+        <div className="h-full flex">
+          {/* Left Panel — Article List */}
+          <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">Knowledge Base</h2>
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search articles..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Category Filters */}
+            {categories.length > 1 && (
+              <div className="px-4 py-3 border-b border-gray-100 flex gap-1.5 flex-wrap">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      activeCategory === cat
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Article List */}
+            <div className="flex-1 overflow-y-auto">
+              {filteredArticles.length === 0 ? (
+                <div className="p-6 text-center">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-sm text-gray-400">{knowledgeBase.length === 0 ? 'No articles yet' : 'No articles found'}</p>
+                </div>
+              ) : (
+                filteredArticles.map((article) => {
+                  const isSelected = article.id === selectedArticleId;
+                  return (
+                    <button
+                      key={article.id}
+                      onClick={() => setSelectedArticleId(article.id)}
+                      className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 border-l-[3px] border-l-blue-500'
+                          : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
+                        {article.title}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{article.category}{article.updatedAt ? ` · ${timeAgo(article.updatedAt)}` : ''}</div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
+              <p className="text-xs text-gray-400">{filteredArticles.length} of {knowledgeBase.length} articles</p>
+            </div>
+          </div>
+
+          {/* Right Panel — Article Content */}
+          <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
+            {!selectedArticle ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                  <NavIcon name="lightbulb" className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-500 mb-1">Select an article to view</h3>
+                <p className="text-sm text-gray-400">{knowledgeBase.length === 0 ? 'Create articles from the Admin panel' : 'Choose an article from the list to read its content'}</p>
+              </div>
+            ) : (
+              <div className="max-w-5xl mx-auto px-8 py-8">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
+                      {selectedArticle.category}
+                    </span>
+                    <h1 className="text-2xl font-bold text-gray-900">{selectedArticle.title}</h1>
+                  </div>
+                  <button
+                    onClick={() => onNavigate('ask-cat')}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0 ml-4"
+                  >
+                    <NavIcon name="chat" className="w-4 h-4 text-white" />
+                    Ask CAT about this
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
+                  {renderContent(selectedArticle.content)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // PAGE: GLOSSARY
     // ============================================================
 
@@ -1964,15 +2610,19 @@ ${contactsRef}`;
 
     const ADMIN_TABS = [
       { id: 'sops', label: 'SOPs' },
+      { id: 'dailyTasks', label: 'Daily Tasks' },
+      { id: 'knowledgeBase', label: 'Knowledge Base' },
       { id: 'glossary', label: 'Glossary' },
       { id: 'contacts', label: 'Contacts' },
     ];
 
     function AdminPage(props) {
-      const { sops, categories, glossary, contacts,
+      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase,
         onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete, onCategoriesUpdate,
         onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
-        onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete } = props;
+        onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
+        onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
+        onKBCreate, onKBArticleUpdate, onKBDelete } = props;
       const [activeTab, setActiveTab] = useState('sops');
 
       return (
@@ -1981,7 +2631,7 @@ ${contactsRef}`;
             {/* Header */}
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
-              <p className="text-gray-500 text-sm mt-1">Manage SOPs, glossary, and contacts</p>
+              <p className="text-gray-500 text-sm mt-1">Manage SOPs, daily tasks, knowledge base, glossary, and contacts</p>
             </div>
 
             {/* Tab Bar */}
@@ -2010,6 +2660,22 @@ ${contactsRef}`;
                 onSopUpdate={onSopUpdate}
                 onSopDelete={onSopDelete}
                 onCategoriesUpdate={onCategoriesUpdate}
+              />
+            )}
+            {activeTab === 'dailyTasks' && (
+              <AdminDailyTasksTab
+                dailyTasks={dailyTasks}
+                onTaskCreate={onDailyTaskCreate}
+                onTaskUpdate={onDailyTaskUpdate}
+                onTaskDelete={onDailyTaskDelete}
+              />
+            )}
+            {activeTab === 'knowledgeBase' && (
+              <AdminKnowledgeBaseTab
+                knowledgeBase={knowledgeBase}
+                onArticleCreate={onKBCreate}
+                onArticleUpdate={onKBArticleUpdate}
+                onArticleDelete={onKBDelete}
               />
             )}
             {activeTab === 'glossary' && (
@@ -2112,10 +2778,176 @@ ${contactsRef}`;
     }
 
     // ============================================================
+    // ADMIN TAB: DAILY TASKS
+    // ============================================================
+
+    function AdminDailyTasksTab({ dailyTasks, onTaskCreate, onTaskUpdate, onTaskDelete }) {
+      const [editingTask, setEditingTask] = useState(null);
+      const [showEditor, setShowEditor] = useState(false);
+      const [saving, setSaving] = useState(false);
+
+      const taskCategories = useMemo(() => {
+        return [...new Set(dailyTasks.map(t => t.category))].sort();
+      }, [dailyTasks]);
+
+      const handleDelete = async (taskId) => {
+        if (confirm('Delete this task? This cannot be undone.')) {
+          await onTaskDelete(taskId);
+        }
+      };
+
+      const handleSave = async (taskData) => {
+        setSaving(true);
+        try {
+          if (editingTask) {
+            await onTaskUpdate(editingTask.id, taskData);
+          } else {
+            await onTaskCreate(taskData);
+          }
+        } finally {
+          setSaving(false);
+          setShowEditor(false);
+          setEditingTask(null);
+        }
+      };
+
+      if (showEditor || editingTask) {
+        return (
+          <SOPEditor
+            sop={editingTask}
+            categories={taskCategories.length > 0 ? taskCategories : ['Sourcing', 'Warehouse', 'Compliance', 'Communication', 'Maintenance']}
+            onSave={handleSave}
+            onCancel={() => { setShowEditor(false); setEditingTask(null); }}
+            saving={saving}
+            labelType="Task"
+          />
+        );
+      }
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{dailyTasks.length} tasks</p>
+            <button onClick={() => setShowEditor(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add New Task</button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {dailyTasks.map((task) => (
+                <div key={task.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div>
+                    <h3 className="font-medium text-gray-800">{task.title}</h3>
+                    <div className="flex gap-3 mt-1">
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{task.category}</span>
+                      {task.updatedAt && <span className="text-xs text-gray-400">Updated {timeAgo(task.updatedAt)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingTask(task)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {dailyTasks.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">No daily tasks yet. Add your first one.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // ADMIN TAB: KNOWLEDGE BASE
+    // ============================================================
+
+    function AdminKnowledgeBaseTab({ knowledgeBase, onArticleCreate, onArticleUpdate, onArticleDelete }) {
+      const [editingArticle, setEditingArticle] = useState(null);
+      const [showEditor, setShowEditor] = useState(false);
+      const [saving, setSaving] = useState(false);
+
+      const articleCategories = useMemo(() => {
+        return [...new Set(knowledgeBase.map(a => a.category))].sort();
+      }, [knowledgeBase]);
+
+      const handleDelete = async (articleId) => {
+        if (confirm('Delete this article? This cannot be undone.')) {
+          await onArticleDelete(articleId);
+        }
+      };
+
+      const handleSave = async (articleData) => {
+        setSaving(true);
+        try {
+          if (editingArticle) {
+            await onArticleUpdate(editingArticle.id, articleData);
+          } else {
+            await onArticleCreate(articleData);
+          }
+        } finally {
+          setSaving(false);
+          setShowEditor(false);
+          setEditingArticle(null);
+        }
+      };
+
+      if (showEditor || editingArticle) {
+        return (
+          <SOPEditor
+            sop={editingArticle}
+            categories={articleCategories.length > 0 ? articleCategories : ['General', 'Reference', 'How-To']}
+            onSave={handleSave}
+            onCancel={() => { setShowEditor(false); setEditingArticle(null); }}
+            saving={saving}
+            labelType="Article"
+          />
+        );
+      }
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{knowledgeBase.length} articles</p>
+            <button onClick={() => setShowEditor(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add New Article</button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {knowledgeBase.map((article) => (
+                <div key={article.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div>
+                    <h3 className="font-medium text-gray-800">{article.title}</h3>
+                    <div className="flex gap-3 mt-1">
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{article.category}</span>
+                      {article.updatedAt && <span className="text-xs text-gray-400">Updated {timeAgo(article.updatedAt)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingArticle(article)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(article.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {knowledgeBase.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">No articles yet. Add your first one.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // SOP EDITOR (Split-pane with toolbar)
     // ============================================================
 
-    function SOPEditor({ sop, categories, onSave, onCancel, saving }) {
+    function SOPEditor({ sop, categories, onSave, onCancel, saving, labelType = 'SOP' }) {
       const [title, setTitle] = useState(sop?.title || '');
       const [category, setCategory] = useState(sop?.category || categories[0] || '');
       const [content, setContent] = useState(sop?.content || '');
@@ -2184,10 +3016,10 @@ ${contactsRef}`;
         <div>
           {/* Top bar */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">{sop ? 'Edit SOP' : 'New SOP'}</h2>
+            <h2 className="text-lg font-semibold text-gray-800">{sop ? `Edit ${labelType}` : `New ${labelType}`}</h2>
             <div className="flex gap-2">
               <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-              <button onClick={() => onSave({ title, category, content })} disabled={!canSave || saving} className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors">{saving ? 'Saving...' : 'Save SOP'}</button>
+              <button onClick={() => onSave({ title, category, content })} disabled={!canSave || saving} className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors">{saving ? 'Saving...' : `Save ${labelType}`}</button>
             </div>
           </div>
 
@@ -2195,7 +3027,7 @@ ${contactsRef}`;
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g., Goods Receiving" />
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder={`Enter ${labelType.toLowerCase()} title`} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
@@ -2227,7 +3059,7 @@ ${contactsRef}`;
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="w-1/2 p-4 font-mono text-sm text-gray-800 resize-none outline-none border-r border-gray-200 bg-white"
-              placeholder="Write your SOP content in Markdown..."
+              placeholder={`Write your ${labelType.toLowerCase()} content in Markdown...`}
             />
             {/* Preview */}
             <div className="w-1/2 p-4 overflow-y-auto bg-white">
