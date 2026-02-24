@@ -285,6 +285,19 @@
       } catch { return ''; }
     }
 
+    const formatSopNumber = (num) => `SOP-${String(num).padStart(3, '0')}`;
+    const formatDtNumber = (num) => `DT-${String(num).padStart(3, '0')}`;
+    const formatKbNumber = (num) => `KB-${String(num).padStart(3, '0')}`;
+
+    // Process [[SOP-001]], [[DT-001]], [[KB-001]] cross-links in rendered HTML
+    const processContentLinks = (html) => {
+      return html.replace(/\[\[(SOP|DT|KB)-(\d{1,3})\]\]/g, (match, type, numStr) => {
+        const num = parseInt(numStr);
+        const label = `${type}-${String(num).padStart(3, '0')}`;
+        return `<a href="#" data-crosslink-type="${type}" data-crosslink-number="${num}" class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 font-mono text-sm font-semibold rounded hover:bg-blue-100 no-underline transition-colors cursor-pointer">${label}</a>`;
+      });
+    };
+
     // ============================================================
     // DEFAULT SOP DATA
     // ============================================================
@@ -292,6 +305,7 @@
     const DEFAULT_SOPS = [
       {
         id: 'sop-sharepoint',
+        sopNumber: 1,
         title: 'Using SharePoint',
         category: 'Systems',
         updatedAt: new Date().toISOString(),
@@ -348,6 +362,7 @@ Service Supplier List: This list is used as an index of all external service sup
       },
       {
         id: 'sop-goods-receiving',
+        sopNumber: 2,
         title: 'Goods Receiving',
         category: 'Logistics',
         updatedAt: new Date().toISOString(),
@@ -422,6 +437,7 @@ Your next view is the tracking number view. This is where you have all informati
       },
       {
         id: 'sop-purchase-order',
+        sopNumber: 3,
         title: 'Create Purchase Order',
         category: 'Purchasing',
         updatedAt: new Date().toISOString(),
@@ -503,6 +519,7 @@ Archive the PO document in the corresponding folder in the physical archive. Eac
       },
       {
         id: 'sop-import-enduse',
+        sopNumber: 4,
         title: 'Import and End-Use Certification',
         category: 'Logistics',
         updatedAt: new Date().toISOString(),
@@ -603,6 +620,7 @@ This method preserves traceability and allows us to search for the AWB number in
       },
       {
         id: 'sop-aerotron-cores',
+        sopNumber: 5,
         title: 'Processing Aerotron Core Units',
         category: 'Logistics',
         updatedAt: new Date().toISOString(),
@@ -709,6 +727,7 @@ Attach: U/S tag(s), Core exchange document(s), NIS document(s), AWB, Shipping in
     const DEFAULT_DAILY_TASKS = [
       {
         id: 'dt-1',
+        dtNumber: 1,
         title: 'Monitor Part Requests',
         category: 'Sourcing',
         updatedAt: new Date().toISOString(),
@@ -733,6 +752,7 @@ External requests come from external customers or satellite locations via the Sh
       },
       {
         id: 'dt-2',
+        dtNumber: 2,
         title: 'Non-Aircraft Item Requests',
         category: 'Sourcing',
         updatedAt: new Date().toISOString(),
@@ -754,6 +774,7 @@ After actioning a request, update the ordered status and add a brief comment wit
       },
       {
         id: 'dt-3',
+        dtNumber: 3,
         title: 'Part Sourcing and Procurement',
         category: 'Sourcing',
         updatedAt: new Date().toISOString(),
@@ -800,6 +821,7 @@ Airseven has contractual agreements covering most rotable components:
       },
       {
         id: 'dt-4',
+        dtNumber: 4,
         title: 'Receiving Goods',
         category: 'Warehouse',
         updatedAt: new Date().toISOString(),
@@ -816,6 +838,7 @@ Airseven has contractual agreements covering most rotable components:
       },
       {
         id: 'dt-5',
+        dtNumber: 5,
         title: 'Shipping Goods',
         category: 'Warehouse',
         updatedAt: new Date().toISOString(),
@@ -832,6 +855,7 @@ Always ensure appropriate cushioning and packaging. Depending on parcel size, qu
       },
       {
         id: 'dt-6',
+        dtNumber: 6,
         title: 'Checking for Expired and Overdue Parts',
         category: 'Compliance',
         updatedAt: new Date().toISOString(),
@@ -855,6 +879,7 @@ Always ensure appropriate cushioning and packaging. Depending on parcel size, qu
       },
       {
         id: 'dt-7',
+        dtNumber: 7,
         title: 'Emails',
         category: 'Communication',
         updatedAt: new Date().toISOString(),
@@ -862,6 +887,7 @@ Always ensure appropriate cushioning and packaging. Depending on parcel size, qu
       },
       {
         id: 'dt-8',
+        dtNumber: 8,
         title: 'Processing Core Units and Return Shipments',
         category: 'Maintenance',
         updatedAt: new Date().toISOString(),
@@ -877,6 +903,7 @@ Airseven's mechanic crew often works nights and weekends. They send task reports
       },
       {
         id: 'dt-9',
+        dtNumber: 9,
         title: 'Processing Green Tag Units',
         category: 'Maintenance',
         updatedAt: new Date().toISOString(),
@@ -889,6 +916,7 @@ Our task is to:
       },
       {
         id: 'dt-10',
+        dtNumber: 10,
         title: 'Warehouse and Facility Upkeep',
         category: 'Warehouse',
         updatedAt: new Date().toISOString(),
@@ -904,6 +932,7 @@ Upkeep tasks include:
       },
       {
         id: 'dt-11',
+        dtNumber: 11,
         title: 'Return Surplus Parts to Stock',
         category: 'Warehouse',
         updatedAt: new Date().toISOString(),
@@ -1278,6 +1307,48 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             LocalStorage.savePricing(loadedPricing);
           }
 
+          // Migrate SOPs missing sopNumber
+          const unnumbered = loadedSops.filter(s => !s.sopNumber);
+          if (unnumbered.length > 0) {
+            let maxNum = loadedSops.reduce((max, s) => Math.max(max, s.sopNumber || 0), 0);
+            unnumbered.sort((a, b) => a.title.localeCompare(b.title));
+            unnumbered.forEach(s => { s.sopNumber = ++maxNum; });
+            LocalStorage.saveSOPs(loadedSops);
+            if (db) {
+              unnumbered.forEach(s => {
+                FirestoreService.updateSOP(s.id, { sopNumber: s.sopNumber }).catch(() => {});
+              });
+            }
+          }
+
+          // Migrate Daily Tasks missing dtNumber
+          const unnumberedDt = loadedDailyTasks.filter(t => !t.dtNumber);
+          if (unnumberedDt.length > 0) {
+            let maxDt = loadedDailyTasks.reduce((max, t) => Math.max(max, t.dtNumber || 0), 0);
+            unnumberedDt.sort((a, b) => a.title.localeCompare(b.title));
+            unnumberedDt.forEach(t => { t.dtNumber = ++maxDt; });
+            LocalStorage.saveDailyTasks(loadedDailyTasks);
+            if (db) {
+              unnumberedDt.forEach(t => {
+                FirestoreService.updateDailyTask(t.id, { dtNumber: t.dtNumber }).catch(() => {});
+              });
+            }
+          }
+
+          // Migrate Knowledge Base articles missing kbNumber
+          const unnumberedKb = loadedKnowledgeBase.filter(a => !a.kbNumber);
+          if (unnumberedKb.length > 0) {
+            let maxKb = loadedKnowledgeBase.reduce((max, a) => Math.max(max, a.kbNumber || 0), 0);
+            unnumberedKb.sort((a, b) => a.title.localeCompare(b.title));
+            unnumberedKb.forEach(a => { a.kbNumber = ++maxKb; });
+            LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
+            if (db) {
+              unnumberedKb.forEach(a => {
+                FirestoreService.updateKBArticle(a.id, { kbNumber: a.kbNumber }).catch(() => {});
+              });
+            }
+          }
+
           setSops(loadedSops);
           setGlossary(loadedGlossary);
           setContacts(loadedContacts);
@@ -1320,13 +1391,15 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleSopCreate = async (sopData) => {
         const now = new Date().toISOString();
+        const maxNumber = sops.reduce((max, s) => Math.max(max, s.sopNumber || 0), 0);
+        const sopNumber = maxNumber + 1;
         let newId = `sop-${Date.now()}`;
         try {
-          const firestoreId = await FirestoreService.saveSOP(sopData);
+          const firestoreId = await FirestoreService.saveSOP({ ...sopData, sopNumber });
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
-        const newSop = { ...sopData, id: newId, createdAt: now, updatedAt: now };
-        const updated = [...sops, newSop].sort((a, b) => a.title.localeCompare(b.title));
+        const newSop = { ...sopData, id: newId, sopNumber, createdAt: now, updatedAt: now };
+        const updated = [...sops, newSop].sort((a, b) => (a.sopNumber || 0) - (b.sopNumber || 0));
         setSops(updated);
         LocalStorage.saveSOPs(updated);
         return newId;
@@ -1419,13 +1492,15 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleDailyTaskCreate = async (taskData) => {
         const now = new Date().toISOString();
+        const maxDtNumber = dailyTasks.reduce((max, t) => Math.max(max, t.dtNumber || 0), 0);
+        const dtNumber = maxDtNumber + 1;
         let newId = `dt-${Date.now()}`;
         try {
-          const firestoreId = await FirestoreService.saveDailyTask(taskData);
+          const firestoreId = await FirestoreService.saveDailyTask({ ...taskData, dtNumber });
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
-        const newTask = { ...taskData, id: newId, createdAt: now, updatedAt: now };
-        const updated = [...dailyTasks, newTask].sort((a, b) => a.title.localeCompare(b.title));
+        const newTask = { ...taskData, id: newId, dtNumber, createdAt: now, updatedAt: now };
+        const updated = [...dailyTasks, newTask].sort((a, b) => (a.dtNumber || 0) - (b.dtNumber || 0));
         setDailyTasks(updated);
         LocalStorage.saveDailyTasks(updated);
         return newId;
@@ -1454,13 +1529,15 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleKBCreate = async (articleData) => {
         const now = new Date().toISOString();
+        const maxKbNumber = knowledgeBase.reduce((max, a) => Math.max(max, a.kbNumber || 0), 0);
+        const kbNumber = maxKbNumber + 1;
         let newId = `kb-${Date.now()}`;
         try {
-          const firestoreId = await FirestoreService.saveKBArticle(articleData);
+          const firestoreId = await FirestoreService.saveKBArticle({ ...articleData, kbNumber });
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
-        const newArticle = { ...articleData, id: newId, createdAt: now, updatedAt: now };
-        const updated = [...knowledgeBase, newArticle].sort((a, b) => a.title.localeCompare(b.title));
+        const newArticle = { ...articleData, id: newId, kbNumber, createdAt: now, updatedAt: now };
+        const updated = [...knowledgeBase, newArticle].sort((a, b) => (a.kbNumber || 0) - (b.kbNumber || 0));
         setKnowledgeBase(updated);
         LocalStorage.saveKnowledgeBase(updated);
         return newId;
@@ -1651,17 +1728,29 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         onPricingUpdate, onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
         onLogout } = props;
       const [currentPage, setCurrentPage] = useState('ask-cat');
+      const [deepLinkTarget, setDeepLinkTarget] = useState(null);
+
+      const handleNavigate = useCallback((page, target) => {
+        setCurrentPage(page);
+        setDeepLinkTarget(target || null);
+      }, []);
+
+      const handleCrossLinkClick = useCallback((type, number) => {
+        const pageMap = { SOP: 'sop-archive', DT: 'daily-tasks', KB: 'knowledge-base' };
+        const page = pageMap[type];
+        if (page) handleNavigate(page, { type, number });
+      }, [handleNavigate]);
 
       const renderPage = () => {
         switch (currentPage) {
           case 'ask-cat':
             return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} />;
           case 'sop-archive':
-            return <SOPArchivePage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} onNavigate={setCurrentPage} />;
+            return <SOPArchivePage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'daily-tasks':
-            return <DailyTasksPage dailyTasks={dailyTasks} onNavigate={setCurrentPage} />;
+            return <DailyTasksPage dailyTasks={dailyTasks} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'knowledge-base':
-            return <KnowledgeBasePage knowledgeBase={knowledgeBase} onNavigate={setCurrentPage} />;
+            return <KnowledgeBasePage knowledgeBase={knowledgeBase} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'glossary':
             return <GlossaryPage glossary={glossary} />;
           case 'contacts':
@@ -1729,7 +1818,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setCurrentPage(item.id)}
+                    onClick={() => handleNavigate(item.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-blue-50 text-blue-600'
@@ -1746,7 +1835,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             {/* Bottom Section: Admin + Logout */}
             <div className="px-3 py-3 border-t border-gray-100 space-y-1">
               <button
-                onClick={() => setCurrentPage('admin')}
+                onClick={() => handleNavigate('admin')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   currentPage === 'admin'
                     ? 'bg-blue-50 text-blue-600'
@@ -2171,7 +2260,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // PAGE: SOP ARCHIVE
     // ============================================================
 
-    function SOPArchivePage({ sops, glossary, contacts, dailyTasks, knowledgeBase, onNavigate }) {
+    function SOPArchivePage({ sops, glossary, contacts, dailyTasks, knowledgeBase, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
       const [selectedSopId, setSelectedSopId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
       const [activeCategory, setActiveCategory] = useState('All');
@@ -2190,7 +2279,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           const matchesSearch = !searchQuery || sop.title.toLowerCase().includes(searchQuery.toLowerCase());
           const matchesCategory = activeCategory === 'All' || sop.category === activeCategory;
           return matchesSearch && matchesCategory;
-        }).sort((a, b) => a.title.localeCompare(b.title));
+        }).sort((a, b) => (a.sopNumber || 0) - (b.sopNumber || 0));
       }, [sops, searchQuery, activeCategory]);
 
       const selectedSop = useMemo(() => {
@@ -2201,10 +2290,38 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         if (contentRef.current) contentRef.current.scrollTop = 0;
       }, [selectedSopId]);
 
+      // Deep-link: auto-select SOP by number
+      useEffect(() => {
+        if (deepLinkTarget && deepLinkTarget.type === 'SOP') {
+          const target = sops.find(s => s.sopNumber === deepLinkTarget.number);
+          if (target) {
+            setSelectedSopId(target.id);
+            setActiveCategory('All');
+            setSearchQuery('');
+          }
+          onClearDeepLink();
+        }
+      }, [deepLinkTarget]);
+
+      const handleContentClick = (e) => {
+        const link = e.target.closest('[data-crosslink-type]');
+        if (link) {
+          e.preventDefault();
+          const type = link.getAttribute('data-crosslink-type');
+          const number = parseInt(link.getAttribute('data-crosslink-number'));
+          if (type === 'SOP') {
+            const target = sops.find(s => s.sopNumber === number);
+            if (target) { setSelectedSopId(target.id); setActiveCategory('All'); setSearchQuery(''); }
+          } else if (onCrossLink) {
+            onCrossLink(type, number);
+          }
+        }
+      };
+
       const renderSopContent = (content) => {
         try {
-          const html = marked.parse(content);
-          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+          const html = processContentLinks(marked.parse(content));
+          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
         } catch {
           return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
         }
@@ -2313,6 +2430,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
+                      {sop.sopNumber && <div className="text-xs text-gray-400 font-mono">{formatSopNumber(sop.sopNumber)}</div>}
                       <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                         {sop.title}
                       </div>
@@ -2347,6 +2465,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
                       {selectedSop.category}
                     </span>
+                    {selectedSop.sopNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatSopNumber(selectedSop.sopNumber)}</div>}
                     <h1 className="text-2xl font-bold text-gray-900">{selectedSop.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
@@ -2403,7 +2522,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // PAGE: DAILY TASKS
     // ============================================================
 
-    function DailyTasksPage({ dailyTasks, onNavigate }) {
+    function DailyTasksPage({ dailyTasks, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
       const [selectedTaskId, setSelectedTaskId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
       const contentRef = useRef(null);
@@ -2411,7 +2530,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const filteredTasks = useMemo(() => {
         return dailyTasks.filter(task => {
           return !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.category.toLowerCase().includes(searchQuery.toLowerCase());
-        }).sort((a, b) => a.title.localeCompare(b.title));
+        }).sort((a, b) => (a.dtNumber || 0) - (b.dtNumber || 0));
       }, [dailyTasks, searchQuery]);
 
       const selectedTask = useMemo(() => {
@@ -2422,10 +2541,37 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         if (contentRef.current) contentRef.current.scrollTop = 0;
       }, [selectedTaskId]);
 
+      // Deep-link: auto-select task by number
+      useEffect(() => {
+        if (deepLinkTarget && deepLinkTarget.type === 'DT') {
+          const target = dailyTasks.find(t => t.dtNumber === deepLinkTarget.number);
+          if (target) {
+            setSelectedTaskId(target.id);
+            setSearchQuery('');
+          }
+          onClearDeepLink();
+        }
+      }, [deepLinkTarget]);
+
+      const handleContentClick = (e) => {
+        const link = e.target.closest('[data-crosslink-type]');
+        if (link) {
+          e.preventDefault();
+          const type = link.getAttribute('data-crosslink-type');
+          const number = parseInt(link.getAttribute('data-crosslink-number'));
+          if (type === 'DT') {
+            const target = dailyTasks.find(t => t.dtNumber === number);
+            if (target) { setSelectedTaskId(target.id); setSearchQuery(''); }
+          } else if (onCrossLink) {
+            onCrossLink(type, number);
+          }
+        }
+      };
+
       const renderContent = (content) => {
         try {
-          const html = marked.parse(content);
-          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+          const html = processContentLinks(marked.parse(content));
+          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
         } catch {
           return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
         }
@@ -2471,6 +2617,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
+                      {task.dtNumber && <div className="text-xs text-gray-400 font-mono">{formatDtNumber(task.dtNumber)}</div>}
                       <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                         {task.title}
                       </div>
@@ -2503,6 +2650,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
                       {selectedTask.category}
                     </span>
+                    {selectedTask.dtNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatDtNumber(selectedTask.dtNumber)}</div>}
                     <h1 className="text-2xl font-bold text-gray-900">{selectedTask.title}</h1>
                   </div>
                   <button
@@ -2527,7 +2675,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // PAGE: KNOWLEDGE BASE
     // ============================================================
 
-    function KnowledgeBasePage({ knowledgeBase, onNavigate }) {
+    function KnowledgeBasePage({ knowledgeBase, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
       const [selectedArticleId, setSelectedArticleId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
       const [activeCategory, setActiveCategory] = useState('All');
@@ -2543,7 +2691,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           const matchesSearch = !searchQuery || article.title.toLowerCase().includes(searchQuery.toLowerCase());
           const matchesCategory = activeCategory === 'All' || article.category === activeCategory;
           return matchesSearch && matchesCategory;
-        }).sort((a, b) => a.title.localeCompare(b.title));
+        }).sort((a, b) => (a.kbNumber || 0) - (b.kbNumber || 0));
       }, [knowledgeBase, searchQuery, activeCategory]);
 
       const selectedArticle = useMemo(() => {
@@ -2554,10 +2702,38 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         if (contentRef.current) contentRef.current.scrollTop = 0;
       }, [selectedArticleId]);
 
+      // Deep-link: auto-select article by number
+      useEffect(() => {
+        if (deepLinkTarget && deepLinkTarget.type === 'KB') {
+          const target = knowledgeBase.find(a => a.kbNumber === deepLinkTarget.number);
+          if (target) {
+            setSelectedArticleId(target.id);
+            setActiveCategory('All');
+            setSearchQuery('');
+          }
+          onClearDeepLink();
+        }
+      }, [deepLinkTarget]);
+
+      const handleContentClick = (e) => {
+        const link = e.target.closest('[data-crosslink-type]');
+        if (link) {
+          e.preventDefault();
+          const type = link.getAttribute('data-crosslink-type');
+          const number = parseInt(link.getAttribute('data-crosslink-number'));
+          if (type === 'KB') {
+            const target = knowledgeBase.find(a => a.kbNumber === number);
+            if (target) { setSelectedArticleId(target.id); setActiveCategory('All'); setSearchQuery(''); }
+          } else if (onCrossLink) {
+            onCrossLink(type, number);
+          }
+        }
+      };
+
       const renderContent = (content) => {
         try {
-          const html = marked.parse(content);
-          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+          const html = processContentLinks(marked.parse(content));
+          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
         } catch {
           return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
         }
@@ -2622,6 +2798,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
+                      {article.kbNumber && <div className="text-xs text-gray-400 font-mono">{formatKbNumber(article.kbNumber)}</div>}
                       <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                         {article.title}
                       </div>
@@ -2654,6 +2831,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
                       {selectedArticle.category}
                     </span>
+                    {selectedArticle.kbNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatKbNumber(selectedArticle.kbNumber)}</div>}
                     <h1 className="text-2xl font-bold text-gray-900">{selectedArticle.title}</h1>
                   </div>
                   <button
@@ -3116,9 +3294,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {sops.slice().sort((a, b) => a.title.localeCompare(b.title)).map((sop) => (
+              {sops.slice().sort((a, b) => (a.sopNumber || 0) - (b.sopNumber || 0)).map((sop) => (
                 <div key={sop.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
+                    {sop.sopNumber && <div className="text-xs text-gray-400 font-mono">{formatSopNumber(sop.sopNumber)}</div>}
                     <h3 className="font-medium text-gray-800">{sop.title}</h3>
                     <div className="flex gap-3 mt-1">
                       <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{sop.category}</span>
@@ -3199,9 +3378,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {dailyTasks.slice().sort((a, b) => a.title.localeCompare(b.title)).map((task) => (
+              {dailyTasks.slice().sort((a, b) => (a.dtNumber || 0) - (b.dtNumber || 0)).map((task) => (
                 <div key={task.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
+                    {task.dtNumber && <div className="text-xs text-gray-400 font-mono">{formatDtNumber(task.dtNumber)}</div>}
                     <h3 className="font-medium text-gray-800">{task.title}</h3>
                     <div className="flex gap-3 mt-1">
                       <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{task.category}</span>
@@ -3282,9 +3462,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {knowledgeBase.slice().sort((a, b) => a.title.localeCompare(b.title)).map((article) => (
+              {knowledgeBase.slice().sort((a, b) => (a.kbNumber || 0) - (b.kbNumber || 0)).map((article) => (
                 <div key={article.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
+                    {article.kbNumber && <div className="text-xs text-gray-400 font-mono">{formatKbNumber(article.kbNumber)}</div>}
                     <h3 className="font-medium text-gray-800">{article.title}</h3>
                     <div className="flex gap-3 mt-1">
                       <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">{article.category}</span>
@@ -3321,7 +3502,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const editorRef = useRef(null);
 
       const previewHtml = useMemo(() => {
-        try { return marked.parse(content); }
+        try { return processContentLinks(marked.parse(content)); }
         catch { return ''; }
       }, [content]);
 
@@ -3375,6 +3556,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             insertAtCursor('`', '`');
           }
         }},
+        { label: 'Cross-link', icon: '[[]]', action: () => insertAtCursor('[[', ']]') },
       ];
 
       const canSave = title.trim() && content.trim();
@@ -3389,6 +3571,18 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               <button onClick={() => onSave({ title, category, content })} disabled={!canSave || saving} className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors">{saving ? 'Saving...' : `Save ${labelType}`}</button>
             </div>
           </div>
+
+          {/* Item Number (read-only) */}
+          {(labelType === 'SOP' || labelType === 'Task' || labelType === 'Article') && (
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1">{labelType} Number</label>
+              <div className="text-sm font-mono text-gray-600 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 w-fit">
+                {labelType === 'SOP' && (sop?.sopNumber ? formatSopNumber(sop.sopNumber) : 'Auto-assigned on save')}
+                {labelType === 'Task' && (sop?.dtNumber ? formatDtNumber(sop.dtNumber) : 'Auto-assigned on save')}
+                {labelType === 'Article' && (sop?.kbNumber ? formatKbNumber(sop.kbNumber) : 'Auto-assigned on save')}
+              </div>
+            </div>
+          )}
 
           {/* Title & Category */}
           <div className="grid grid-cols-3 gap-4 mb-4">
