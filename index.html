@@ -50,6 +50,44 @@
     }
     .slide-in-right { animation: slideInRight 0.3s ease-out forwards; }
     .slide-out-right { animation: slideOutRight 0.3s ease-in forwards; }
+    /* Glossary term auto-highlight tooltips */
+    .glossary-term {
+      color: #2563eb;
+      border-bottom: 1px dotted #93c5fd;
+      cursor: help;
+      position: relative;
+      display: inline;
+    }
+    .glossary-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      color: #f1f5f9;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      width: max-content;
+      max-width: 300px;
+      z-index: 50;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .glossary-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #1e293b;
+    }
+    .glossary-term:hover .glossary-tooltip {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -296,6 +334,64 @@
         const label = `${type}-${String(num).padStart(3, '0')}`;
         return `<a href="#" data-crosslink-type="${type}" data-crosslink-number="${num}" class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 font-mono text-sm font-semibold rounded hover:bg-blue-100 no-underline transition-colors cursor-pointer">${label}</a>`;
       });
+    };
+
+    // Escape HTML special characters for safe insertion into tooltips
+    const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    // Auto-detect glossary terms in rendered HTML and wrap with hover tooltips
+    const processGlossaryTerms = (html, glossaryItems) => {
+      if (!glossaryItems || glossaryItems.length === 0) return html;
+
+      // Sort by name length descending so longer terms match first (e.g. "U/S tag" before "U/S")
+      const sorted = [...glossaryItems].sort((a, b) => b.name.length - a.name.length);
+
+      // Track matched terms (first occurrence only)
+      const matched = new Set();
+
+      // Process a text node — find and wrap glossary matches
+      const processTextNode = (text) => {
+        let result = text;
+        for (const item of sorted) {
+          if (matched.has(item.id)) continue;
+
+          const escapedName = item.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          // Abbreviations: case-sensitive. Terms: case-insensitive.
+          const flags = item.type === 'abbreviation' ? '' : 'i';
+          const regex = new RegExp(`\\b${escapedName}\\b`, flags);
+
+          const m = result.match(regex);
+          if (m) {
+            matched.add(item.id);
+            const matchedText = m[0];
+            const idx = m.index;
+            const tooltipContent = escapeHtml(item.meaning) +
+              (item.context ? `<br><span style="opacity:0.7;font-style:italic">${escapeHtml(item.context)}</span>` : '');
+            const replacement = `<span class="glossary-term">${matchedText}<span class="glossary-tooltip"><strong>${escapeHtml(item.name)}</strong> — ${tooltipContent}</span></span>`;
+            result = result.substring(0, idx) + replacement + result.substring(idx + matchedText.length);
+          }
+        }
+        return result;
+      };
+
+      // Split HTML into tags and text segments, only process text outside skip-tags
+      const parts = html.split(/(<[^>]+>)/);
+      const skipTags = ['code', 'pre', 'a'];
+      let skipDepth = 0;
+
+      const processed = parts.map(part => {
+        if (part.startsWith('<')) {
+          for (const tag of skipTags) {
+            if (new RegExp(`^<${tag}[\\s>]`, 'i').test(part)) skipDepth++;
+            else if (new RegExp(`^</${tag}>`, 'i').test(part)) skipDepth = Math.max(0, skipDepth - 1);
+          }
+          return part;
+        }
+        if (skipDepth > 0) return part;
+        return processTextNode(part);
+      });
+
+      return processed.join('');
     };
 
     // ============================================================
@@ -1748,9 +1844,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           case 'sop-archive':
             return <SOPArchivePage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'daily-tasks':
-            return <DailyTasksPage dailyTasks={dailyTasks} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
+            return <DailyTasksPage dailyTasks={dailyTasks} glossary={glossary} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'knowledge-base':
-            return <KnowledgeBasePage knowledgeBase={knowledgeBase} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
+            return <KnowledgeBasePage knowledgeBase={knowledgeBase} glossary={glossary} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'glossary':
             return <GlossaryPage glossary={glossary} />;
           case 'contacts':
@@ -2320,7 +2416,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const renderSopContent = (content) => {
         try {
-          const html = processContentLinks(marked.parse(content));
+          const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
           return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
         } catch {
           return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
@@ -2522,7 +2618,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // PAGE: DAILY TASKS
     // ============================================================
 
-    function DailyTasksPage({ dailyTasks, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
+    function DailyTasksPage({ dailyTasks, glossary, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
       const [selectedTaskId, setSelectedTaskId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
       const contentRef = useRef(null);
@@ -2570,7 +2666,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const renderContent = (content) => {
         try {
-          const html = processContentLinks(marked.parse(content));
+          const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
           return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
         } catch {
           return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
@@ -2675,7 +2771,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // PAGE: KNOWLEDGE BASE
     // ============================================================
 
-    function KnowledgeBasePage({ knowledgeBase, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
+    function KnowledgeBasePage({ knowledgeBase, glossary, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
       const [selectedArticleId, setSelectedArticleId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
       const [activeCategory, setActiveCategory] = useState('All');
@@ -2732,7 +2828,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const renderContent = (content) => {
         try {
-          const html = processContentLinks(marked.parse(content));
+          const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
           return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
         } catch {
           return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;

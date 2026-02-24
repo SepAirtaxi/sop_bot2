@@ -4,7 +4,7 @@
 Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance company). New hires use it to look up standard operating procedures, contacts, glossary terms, daily tasks, knowledge base articles, and pricing info. An AI chat ("Ask CAT") powered by Gemini answers questions based on SOP content.
 
 ## Tech Stack
-- **Single-file app**: Everything lives in `index.html` (~3900 lines)
+- **Single-file app**: Everything lives in `index.html` (~4200 lines)
 - **React 18 + Tailwind CSS** via CDN — no build step, no bundler
 - **Babel standalone** for JSX transpilation in-browser
 - **Firebase Firestore** for persistent data (live config in `CONFIG.firebase`)
@@ -34,50 +34,52 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 
 | Lines (approx) | Section |
 |-----------------|---------|
-| 1–55 | HTML head, CSS styles, animations |
-| 66–98 | CONFIG + Firebase initialization |
-| 99–207 | `FirestoreService` — generic CRUD + collection-specific helpers |
-| 208–263 | `LocalStorage` — fallback store for all collections |
-| 264–287 | `timeAgo()` helper |
-| 288–704 | `DEFAULT_SOPS` — hardcoded SOP content (Markdown strings) |
-| 705–919 | `DEFAULT_DAILY_TASKS`, `DEFAULT_CATEGORIES` data |
-| 920–977 | `INITIAL_GLOSSARY` data (versioned with `GLOSSARY_VERSION`) |
-| 978–991 | `INITIAL_CONTACTS` data |
-| 992–1141 | `GeminiService` — builds system prompt, calls `/api/chat` |
-| 1142–1173 | `NAV_ITEMS` config + `NavIcon` SVG component |
-| 1175–1580 | `App` — root component (auth state, data loading, CRUD handlers) |
-| 1581–1637 | `LoginScreen` |
-| 1638–1791 | `AppShell` — sidebar (240px) + content area, page routing |
-| 1792–2037 | `AskCATPage` — chat interface + inline wizard mode |
-| 2038–2169 | `GuidedProcessWizard` — step-by-step card UI |
-| 2170–2401 | `SOPArchivePage` — searchable SOP list with full viewer |
-| 2402–2525 | `DailyTasksPage` — categorized task checklist |
-| 2526–2676 | `KnowledgeBasePage` — article list + viewer |
-| 2677–2780 | `GlossaryPage` — abbreviations + terms display |
-| 2781–2826 | `ContactsPage` — contact cards |
-| 2827–2963 | `PricingPage` — pricing entity display |
-| 2964–3072 | `AdminPage` — tabbed admin panel |
-| 3073–3150 | `AdminSOPsTab` |
-| 3151–3233 | `AdminDailyTasksTab` |
-| 3234–3316 | `AdminKnowledgeBaseTab` |
-| 3317–3444 | `SOPEditor` — reused for SOPs, daily tasks, KB articles |
-| 3445–3536 | `AdminGlossaryTab` |
-| 3537–3605 | `GlossaryFormModal` |
-| 3606–3672 | `AdminContactsTab` |
-| 3673–3739 | `AdminPricingTab` |
-| 3740–3870 | `PricingEntityFormModal` |
-| 3871–3928 | `ContactFormModal` |
-| 3929–3937 | ReactDOM render |
+| 1–88 | HTML head, CSS styles, animations, glossary tooltip styles |
+| 99–131 | CONFIG + Firebase initialization |
+| 132–241 | `FirestoreService` — generic CRUD + collection-specific helpers |
+| 242–297 | `LocalStorage` — fallback store for all collections |
+| 298–395 | Helpers: `timeAgo()`, formatters, `processContentLinks()`, `processGlossaryTerms()` |
+| 396–770 | `DEFAULT_SOPS` — hardcoded SOP content (Markdown strings, with `sopNumber`) |
+| 723–944 | `DEFAULT_DAILY_TASKS` (with `dtNumber`), `DEFAULT_CATEGORIES` data |
+| 945–1006 | `INITIAL_GLOSSARY` data (versioned with `GLOSSARY_VERSION`) |
+| 1007–1017 | `INITIAL_CONTACTS` data |
+| 1018–1170 | `GeminiService` — builds system prompt, calls `/api/chat` |
+| 1171–1203 | `NAV_ITEMS` config + `NavIcon` SVG component |
+| 1205–1656 | `App` — root component (auth state, data loading, migration, CRUD handlers) |
+| 1657–1714 | `LoginScreen` |
+| 1715–1879 | `AppShell` — sidebar + content area, page routing, deep-link navigation |
+| 1880–2128 | `AskCATPage` — chat interface + inline wizard mode |
+| 2127–2258 | `GuidedProcessWizard` — step-by-step card UI |
+| 2259–2520 | `SOPArchivePage` — searchable SOP list with full viewer + cross-links |
+| 2521–2673 | `DailyTasksPage` — categorized task checklist + cross-links |
+| 2674–2854 | `KnowledgeBasePage` — article list + viewer + cross-links |
+| 2855–2958 | `GlossaryPage` — abbreviations + terms display |
+| 2959–3004 | `ContactsPage` — contact cards |
+| 3005–3141 | `PricingPage` — pricing entity display |
+| 3142–3246 | `AdminPage` — tabbed admin panel |
+| 3247–3326 | `AdminSOPsTab` |
+| 3326–3410 | `AdminDailyTasksTab` |
+| 3410–3493 | `AdminKnowledgeBaseTab` |
+| 3494–3638 | `SOPEditor` — reused for SOPs, daily tasks, KB articles (with `[[]]` toolbar) |
+| 3639–3726 | `AdminGlossaryTab` |
+| 3727–3799 | `GlossaryFormModal` |
+| 3800–3866 | `AdminContactsTab` |
+| 3867–3933 | `AdminPricingTab` |
+| 3934–4064 | `PricingEntityFormModal` |
+| 4065–4122 | `ContactFormModal` |
+| 4123–4131 | ReactDOM render |
 
 ### Routing
 State-based via `currentPage` in `AppShell`. No URL router — just a switch on page ID:
 - `ask-cat` (default), `sop-archive`, `daily-tasks`, `knowledge-base`, `glossary`, `contacts`, `pricing`, `admin`
+- `handleNavigate(page, target?)` supports deep-linking with optional `{ type, number }` target for cross-link navigation
 
 ### Data Flow
 1. `App` component loads data on mount: tries Firestore first, falls back to LocalStorage, then falls back to hardcoded defaults
 2. On first Firestore load with empty collections, it seeds from defaults
-3. All CRUD operations go through `App`'s handler functions, which update both Firestore and local state
-4. Data is passed down as props to page components
+3. Migration runs on load: any SOPs/DailyTasks/KB articles missing auto-numbers get assigned (max+1, alphabetical)
+4. All CRUD operations go through `App`'s handler functions, which update both Firestore and local state
+5. Data is passed down as props to page components
 
 ### Authentication
 Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `sessionStorage`)
@@ -91,11 +93,11 @@ Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `
 ## Firebase Collections
 | Collection | Key Fields |
 |------------|------------|
-| `sops` | title, category, content (Markdown), timestamps |
+| `sops` | sopNumber, title, category, content (Markdown), timestamps |
 | `glossary` | type (abbreviation/term), name, meaning, context, category, relatedTerms |
 | `contacts` | name, role, phone, email |
-| `dailyTasks` | title, category, content (Markdown), timestamps |
-| `knowledgeBase` | title, category, content (Markdown), timestamps |
+| `dailyTasks` | dtNumber, title, category, content (Markdown), timestamps |
+| `knowledgeBase` | kbNumber, title, category, content (Markdown), timestamps |
 | `pricing` | name, type, fields (array of {label, value}), notes |
 
 ## Environment Variables
@@ -111,13 +113,38 @@ Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `
 - Admin components follow the pattern: list view + editor/modal for create/edit
 - SVG icons are inline in the `NavIcon` component
 
+### Auto-Numbering
+- SOPs, Daily Tasks, and KB articles each have a permanent auto-assigned number (`sopNumber`, `dtNumber`, `kbNumber`)
+- Numbers are permanent — deleting an item leaves a gap (never reassigned)
+- Formatted as `SOP-001`, `DT-001`, `KB-001` via `formatSopNumber()`, `formatDtNumber()`, `formatKbNumber()`
+- New items get `max(existing numbers) + 1`
+- Migration on load assigns numbers to any items missing them (alphabetical order)
+
+### Cross-Linking
+- Markdown content supports `[[SOP-001]]`, `[[DT-001]]`, `[[KB-001]]` syntax
+- `processContentLinks(html)` post-processes rendered Markdown to replace these with styled clickable elements
+- Same-type links (e.g. `[[SOP-002]]` within an SOP) select in-place; cross-type links navigate to the target page
+- Deep-link navigation via `handleNavigate(page, { type, number })` in `AppShell`
+- Editor toolbar includes a `[[]]` button for easy cross-link insertion
+- Editor preview renders cross-links visually
+
+### Glossary Auto-Highlight
+- `processGlossaryTerms(html, glossaryItems)` scans rendered HTML in SOP/DT/KB viewers for glossary terms
+- Matched terms display as blue text with dotted underline; hovering shows a dark tooltip with name, meaning, and context
+- Abbreviations matched **case-sensitive**, terms matched **case-insensitive** (whole-word via `\b`)
+- Only the **first occurrence** per document is highlighted to avoid visual noise
+- Skips content inside `<code>`, `<pre>`, and `<a>` tags (no interference with cross-links or code blocks)
+- Longer terms match first (sorted by name length descending) to prevent partial matches
+- Runs after `processContentLinks()` in the render pipeline: `processGlossaryTerms(processContentLinks(marked.parse(content)), glossary)`
+- Pure CSS tooltips (no JS hover handlers) — `.glossary-term` and `.glossary-tooltip` classes
+
 ## Deployment
 - Hosted on Vercel at production URL
 - `vercel dev` for local development
 - `vercel --prod` for production deploy
 - SPA rewrites configured in `vercel.json`
 
-## Current Status (updated 2025-02-24)
+## Current Status (updated 2026-02-24)
 ### Completed
 - Full app shell with sidebar navigation (8 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
@@ -131,6 +158,9 @@ Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `
 - Firebase Firestore integration with auto-seeding
 - LocalStorage fallback
 - Login screen
+- Auto-numbering for SOPs (SOP-001), Daily Tasks (DT-001), and KB articles (KB-001)
+- Cross-linking system: `[[SOP-001]]` / `[[DT-001]]` / `[[KB-001]]` syntax in Markdown with click-to-navigate
+- Glossary auto-highlight: glossary terms in SOP/DT/KB content automatically show blue with hover tooltips
 
 ### Planned / Not Yet Started
 - User authentication with multiple users/roles
