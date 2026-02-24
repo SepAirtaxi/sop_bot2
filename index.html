@@ -198,6 +198,12 @@
       async saveKBArticle(data) { return this.add('knowledgeBase', data); },
       async updateKBArticle(id, data) { return this.update('knowledgeBase', id, data); },
       async deleteKBArticle(id) { return this.remove('knowledgeBase', id); },
+
+      // -- Pricing-specific --
+      async getPricing() { return this.getAll('pricing'); },
+      async savePricingEntity(data) { return this.add('pricing', data); },
+      async updatePricingEntity(id, data) { return this.update('pricing', id, data); },
+      async deletePricingEntity(id) { return this.remove('pricing', id); },
     };
 
     // ============================================================
@@ -239,6 +245,13 @@
       },
       saveKnowledgeBase: (articles) => {
         localStorage.setItem('sop_bot_knowledge_base', JSON.stringify(articles));
+      },
+      getPricing: () => {
+        const stored = localStorage.getItem('sop_bot_pricing');
+        return stored ? JSON.parse(stored) : null;
+      },
+      savePricing: (pricing) => {
+        localStorage.setItem('sop_bot_pricing', JSON.stringify(pricing));
       },
       getCategories: () => {
         const stored = localStorage.getItem('sop_bot_categories');
@@ -1132,11 +1145,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
     const NAV_ITEMS = [
       { id: 'ask-cat', label: 'Ask CAT', icon: 'chat' },
-      { id: 'sop-archive', label: 'SOP Archive', icon: 'document' },
-      { id: 'daily-tasks', label: 'Daily Tasks', icon: 'checklist' },
-      { id: 'knowledge-base', label: 'Knowledge Base', icon: 'lightbulb' },
-      { id: 'glossary', label: 'Glossary', icon: 'book' },
       { id: 'contacts', label: 'Contacts', icon: 'people' },
+      { id: 'daily-tasks', label: 'Daily Tasks', icon: 'checklist' },
+      { id: 'glossary', label: 'Glossary', icon: 'book' },
+      { id: 'knowledge-base', label: 'Knowledge Base', icon: 'lightbulb' },
+      { id: 'pricing', label: 'Pricing', icon: 'pricing' },
+      { id: 'sop-archive', label: 'SOP Archive', icon: 'document' },
     ];
 
     // ============================================================
@@ -1151,6 +1165,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         people: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
         checklist: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
         lightbulb: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
+        pricing: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>,
         admin: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
         logout: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
       };
@@ -1169,13 +1184,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [contacts, setContacts] = useState([]);
       const [dailyTasks, setDailyTasks] = useState([]);
       const [knowledgeBase, setKnowledgeBase] = useState([]);
+      const [pricing, setPricing] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
       const [dataSource, setDataSource] = useState(null); // 'firestore' | 'local'
       const [dataError, setDataError] = useState(null);
 
       useEffect(() => {
         const init = async () => {
-          let loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase;
+          let loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing;
 
           // Try Firestore first
           if (db) {
@@ -1185,6 +1201,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               loadedContacts = await FirestoreService.getContacts();
               loadedDailyTasks = await FirestoreService.getDailyTasks();
               loadedKnowledgeBase = await FirestoreService.getKnowledgeBase();
+              loadedPricing = await FirestoreService.getPricing();
 
               // Seed defaults if collections are empty (first-time setup)
               if (loadedSops.length === 0) {
@@ -1206,7 +1223,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 await FirestoreService.seedCollection('dailyTasks', DEFAULT_DAILY_TASKS);
                 loadedDailyTasks = DEFAULT_DAILY_TASKS;
               }
-              // Knowledge Base starts empty — no seeding needed
+              // Knowledge Base and Pricing start empty — no seeding needed
 
               setDataSource('firestore');
               // Cache to localStorage
@@ -1215,6 +1232,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               LocalStorage.saveContacts(loadedContacts);
               LocalStorage.saveDailyTasks(loadedDailyTasks);
               LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
+              LocalStorage.savePricing(loadedPricing);
             } catch (error) {
               console.warn('Firestore unavailable, falling back to localStorage:', error);
               setDataError('Could not connect to cloud database. Using local data.');
@@ -1223,6 +1241,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               loadedContacts = null;
               loadedDailyTasks = null;
               loadedKnowledgeBase = null;
+              loadedPricing = null;
             }
           }
 
@@ -1254,12 +1273,17 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             loadedKnowledgeBase = LocalStorage.getKnowledgeBase() || [];
             LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
           }
+          if (!loadedPricing) {
+            loadedPricing = LocalStorage.getPricing() || [];
+            LocalStorage.savePricing(loadedPricing);
+          }
 
           setSops(loadedSops);
           setGlossary(loadedGlossary);
           setContacts(loadedContacts);
           setDailyTasks(loadedDailyTasks);
           setKnowledgeBase(loadedKnowledgeBase);
+          setPricing(loadedPricing);
 
           let loadedCategories = LocalStorage.getCategories();
           if (!loadedCategories) {
@@ -1302,7 +1326,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
         const newSop = { ...sopData, id: newId, createdAt: now, updatedAt: now };
-        const updated = [...sops, newSop];
+        const updated = [...sops, newSop].sort((a, b) => a.title.localeCompare(b.title));
         setSops(updated);
         LocalStorage.saveSOPs(updated);
         return newId;
@@ -1335,7 +1359,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           const firestoreId = await FirestoreService.saveGlossaryEntry(termData);
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
-        const updated = [...glossary, { ...termData, id: newId }];
+        const updated = [...glossary, { ...termData, id: newId }].sort((a, b) => a.name.localeCompare(b.name));
         setGlossary(updated);
         LocalStorage.saveGlossary(updated);
         return newId;
@@ -1367,7 +1391,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           const firestoreId = await FirestoreService.saveContact(contactData);
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
-        const updated = [...contacts, { ...contactData, id: newId }];
+        const updated = [...contacts, { ...contactData, id: newId }].sort((a, b) => a.name.localeCompare(b.name));
         setContacts(updated);
         LocalStorage.saveContacts(updated);
         return newId;
@@ -1401,7 +1425,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
         const newTask = { ...taskData, id: newId, createdAt: now, updatedAt: now };
-        const updated = [...dailyTasks, newTask];
+        const updated = [...dailyTasks, newTask].sort((a, b) => a.title.localeCompare(b.title));
         setDailyTasks(updated);
         LocalStorage.saveDailyTasks(updated);
         return newId;
@@ -1436,7 +1460,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           if (firestoreId) newId = firestoreId;
         } catch (e) { console.warn('Firestore create failed:', e); }
         const newArticle = { ...articleData, id: newId, createdAt: now, updatedAt: now };
-        const updated = [...knowledgeBase, newArticle];
+        const updated = [...knowledgeBase, newArticle].sort((a, b) => a.title.localeCompare(b.title));
         setKnowledgeBase(updated);
         LocalStorage.saveKnowledgeBase(updated);
         return newId;
@@ -1455,6 +1479,41 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         const updated = knowledgeBase.filter(a => a.id !== id);
         setKnowledgeBase(updated);
         LocalStorage.saveKnowledgeBase(updated);
+      };
+
+      // -- Pricing handlers --
+      const handlePricingUpdate = (newPricing) => {
+        setPricing(newPricing);
+        LocalStorage.savePricing(newPricing);
+      };
+
+      const handlePricingEntityCreate = async (entityData) => {
+        const now = new Date().toISOString();
+        let newId = `pr-${Date.now()}`;
+        try {
+          const firestoreId = await FirestoreService.savePricingEntity(entityData);
+          if (firestoreId) newId = firestoreId;
+        } catch (e) { console.warn('Firestore create failed:', e); }
+        const newEntity = { ...entityData, id: newId, createdAt: now, updatedAt: now };
+        const updated = [...pricing, newEntity].sort((a, b) => a.entityName.localeCompare(b.entityName));
+        setPricing(updated);
+        LocalStorage.savePricing(updated);
+        return newId;
+      };
+
+      const handlePricingEntityUpdate = async (id, entityData) => {
+        const now = new Date().toISOString();
+        try { await FirestoreService.updatePricingEntity(id, entityData); } catch (e) { console.warn('Firestore update failed:', e); }
+        const updated = pricing.map(p => p.id === id ? { ...p, ...entityData, updatedAt: now } : p);
+        setPricing(updated);
+        LocalStorage.savePricing(updated);
+      };
+
+      const handlePricingEntityDelete = async (id) => {
+        try { await FirestoreService.deletePricingEntity(id); } catch (e) { console.warn('Firestore delete failed:', e); }
+        const updated = pricing.filter(p => p.id !== id);
+        setPricing(updated);
+        LocalStorage.savePricing(updated);
       };
 
       const handleCategoriesUpdate = (newCategories) => {
@@ -1484,6 +1543,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           contacts={contacts}
           dailyTasks={dailyTasks}
           knowledgeBase={knowledgeBase}
+          pricing={pricing}
           dataSource={dataSource}
           dataError={dataError}
           onDismissError={() => setDataError(null)}
@@ -1508,6 +1568,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           onKBCreate={handleKBCreate}
           onKBArticleUpdate={handleKBArticleUpdate}
           onKBDelete={handleKBDelete}
+          onPricingUpdate={handlePricingUpdate}
+          onPricingEntityCreate={handlePricingEntityCreate}
+          onPricingEntityUpdate={handlePricingEntityUpdate}
+          onPricingEntityDelete={handlePricingEntityDelete}
           onLogout={handleLogout}
         />
       );
@@ -1576,7 +1640,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function AppShell(props) {
-      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase,
+      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
         dataSource, dataError, onDismissError,
         onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
         onCategoriesUpdate,
@@ -1584,6 +1648,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
         onDailyTasksUpdate, onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
         onKBUpdate, onKBCreate, onKBArticleUpdate, onKBDelete,
+        onPricingUpdate, onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
         onLogout } = props;
       const [currentPage, setCurrentPage] = useState('ask-cat');
 
@@ -1601,6 +1666,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             return <GlossaryPage glossary={glossary} />;
           case 'contacts':
             return <ContactsPage contacts={contacts} />;
+          case 'pricing':
+            return <PricingPage pricing={pricing} />;
           case 'admin':
             return (
               <AdminPage
@@ -1610,6 +1677,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 contacts={contacts}
                 dailyTasks={dailyTasks}
                 knowledgeBase={knowledgeBase}
+                pricing={pricing}
                 onSopsUpdate={onSopsUpdate}
                 onSopCreate={onSopCreate}
                 onSopUpdate={onSopUpdate}
@@ -1629,6 +1697,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onKBCreate={onKBCreate}
                 onKBArticleUpdate={onKBArticleUpdate}
                 onKBDelete={onKBDelete}
+                onPricingEntityCreate={onPricingEntityCreate}
+                onPricingEntityUpdate={onPricingEntityUpdate}
+                onPricingEntityDelete={onPricingEntityDelete}
               />
             );
           default:
@@ -2119,7 +2190,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           const matchesSearch = !searchQuery || sop.title.toLowerCase().includes(searchQuery.toLowerCase());
           const matchesCategory = activeCategory === 'All' || sop.category === activeCategory;
           return matchesSearch && matchesCategory;
-        });
+        }).sort((a, b) => a.title.localeCompare(b.title));
       }, [sops, searchQuery, activeCategory]);
 
       const selectedSop = useMemo(() => {
@@ -2340,7 +2411,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const filteredTasks = useMemo(() => {
         return dailyTasks.filter(task => {
           return !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.category.toLowerCase().includes(searchQuery.toLowerCase());
-        });
+        }).sort((a, b) => a.title.localeCompare(b.title));
       }, [dailyTasks, searchQuery]);
 
       const selectedTask = useMemo(() => {
@@ -2472,7 +2543,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           const matchesSearch = !searchQuery || article.title.toLowerCase().includes(searchQuery.toLowerCase());
           const matchesCategory = activeCategory === 'All' || article.category === activeCategory;
           return matchesSearch && matchesCategory;
-        });
+        }).sort((a, b) => a.title.localeCompare(b.title));
       }, [knowledgeBase, searchQuery, activeCategory]);
 
       const selectedArticle = useMemo(() => {
@@ -2624,7 +2695,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             || term.meaning.toLowerCase().includes(q);
           const matchesCategory = activeCategory === 'All' || term.category === activeCategory;
           return matchesSearch && matchesCategory;
-        });
+        }).sort((a, b) => a.name.localeCompare(b.name));
       }, [glossary, searchQuery, activeCategory]);
 
       return (
@@ -2733,7 +2804,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {contacts.map((contact) => (
+                  {contacts.slice().sort((a, b) => a.name.localeCompare(b.name)).map((contact) => (
                     <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{contact.name}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{contact.role}</td>
@@ -2754,6 +2825,143 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     }
 
     // ============================================================
+    // PAGE: PRICING
+    // ============================================================
+
+    function PricingPage({ pricing }) {
+      const [selectedEntityId, setSelectedEntityId] = useState(pricing.length > 0 ? pricing[0].id : null);
+      const [searchQuery, setSearchQuery] = useState('');
+
+      const filteredEntities = useMemo(() => {
+        const list = !searchQuery.trim() ? pricing : pricing.filter(e => e.entityName.toLowerCase().includes(searchQuery.toLowerCase()));
+        return list.slice().sort((a, b) => a.entityName.localeCompare(b.entityName));
+      }, [pricing, searchQuery]);
+
+      const selectedEntity = pricing.find(e => e.id === selectedEntityId);
+
+      // Auto-select first entity if current selection is gone
+      useEffect(() => {
+        if (!selectedEntity && pricing.length > 0) {
+          setSelectedEntityId(pricing[0].id);
+        }
+      }, [pricing, selectedEntity]);
+
+      if (pricing.length === 0) {
+        return (
+          <div className="h-full overflow-y-auto bg-gray-50">
+            <div className="max-w-4xl mx-auto px-8 py-8">
+              <div className="mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">Pricing</h1>
+                <p className="text-gray-500 text-sm mt-1">Markup tables for customers and entities</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 px-8 py-16 text-center">
+                <NavIcon name="pricing" className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">No pricing entities yet. Add them via the Admin panel.</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="h-full flex bg-gray-50">
+          {/* Left sidebar: entity list */}
+          <div className="w-80 border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
+            <div className="px-4 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">Pricing</h2>
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search entities..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {filteredEntities.map((entity) => {
+                const isActive = entity.id === selectedEntityId;
+                return (
+                  <button
+                    key={entity.id}
+                    onClick={() => setSelectedEntityId(entity.id)}
+                    className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${
+                      isActive ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`text-sm font-medium ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>{entity.entityName}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{(entity.ranges || []).length} markup range{(entity.ranges || []).length !== 1 ? 's' : ''}</div>
+                  </button>
+                );
+              })}
+              {filteredEntities.length === 0 && (
+                <div className="px-4 py-8 text-center text-gray-400 text-sm">No entities match your search.</div>
+              )}
+            </div>
+            <div className="px-4 py-2 border-t border-gray-100">
+              <p className="text-xs text-gray-400">{pricing.length} entit{pricing.length !== 1 ? 'ies' : 'y'}</p>
+            </div>
+          </div>
+
+          {/* Right side: markup table */}
+          <div className="flex-1 overflow-y-auto">
+            {selectedEntity ? (
+              <div className="max-w-3xl mx-auto px-8 py-8">
+                <div className="mb-6">
+                  <h1 className="text-2xl font-bold text-gray-800">{selectedEntity.entityName}</h1>
+                  <p className="text-gray-500 text-sm mt-1">Markup ranges for this entity</p>
+                </div>
+
+                {(selectedEntity.ranges || []).length === 0 ? (
+                  <div className="bg-white rounded-xl border border-gray-200 px-8 py-12 text-center">
+                    <p className="text-gray-400 text-sm">No markup ranges defined yet.</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Price Range (DKK)</th>
+                          <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Markup</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(selectedEntity.ranges || [])
+                          .slice()
+                          .sort((a, b) => (a.from || 0) - (b.from || 0))
+                          .map((range, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 text-sm text-gray-800">
+                              {range.from != null ? range.from.toLocaleString('da-DK') : '0'}
+                              {' — '}
+                              {range.to != null ? range.to.toLocaleString('da-DK') : '∞'}
+                              {' DKK'}
+                            </td>
+                            <td className="px-6 py-4 text-sm font-semibold text-right">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                {range.markup}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-gray-400 text-sm">Select an entity to view its markup ranges.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // PAGE: ADMIN (Tabbed Interface)
     // ============================================================
 
@@ -2763,15 +2971,17 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       { id: 'knowledgeBase', label: 'Knowledge Base' },
       { id: 'glossary', label: 'Glossary' },
       { id: 'contacts', label: 'Contacts' },
+      { id: 'pricing', label: 'Pricing' },
     ];
 
     function AdminPage(props) {
-      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase,
+      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
         onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete, onCategoriesUpdate,
         onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
         onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
         onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
-        onKBCreate, onKBArticleUpdate, onKBDelete } = props;
+        onKBCreate, onKBArticleUpdate, onKBDelete,
+        onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete } = props;
       const [activeTab, setActiveTab] = useState('sops');
 
       return (
@@ -2780,7 +2990,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             {/* Header */}
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
-              <p className="text-gray-500 text-sm mt-1">Manage SOPs, daily tasks, knowledge base, glossary, and contacts</p>
+              <p className="text-gray-500 text-sm mt-1">Manage SOPs, daily tasks, knowledge base, glossary, contacts, and pricing</p>
             </div>
 
             {/* Tab Bar */}
@@ -2843,6 +3053,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onContactDelete={onContactDelete}
               />
             )}
+            {activeTab === 'pricing' && (
+              <AdminPricingTab
+                pricing={pricing}
+                onEntityCreate={onPricingEntityCreate}
+                onEntityUpdate={onPricingEntityUpdate}
+                onEntityDelete={onPricingEntityDelete}
+              />
+            )}
           </div>
         </div>
       );
@@ -2898,7 +3116,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {sops.map((sop) => (
+              {sops.slice().sort((a, b) => a.title.localeCompare(b.title)).map((sop) => (
                 <div key={sop.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
                     <h3 className="font-medium text-gray-800">{sop.title}</h3>
@@ -2981,7 +3199,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {dailyTasks.map((task) => (
+              {dailyTasks.slice().sort((a, b) => a.title.localeCompare(b.title)).map((task) => (
                 <div key={task.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
                     <h3 className="font-medium text-gray-800">{task.title}</h3>
@@ -3064,7 +3282,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {knowledgeBase.map((article) => (
+              {knowledgeBase.slice().sort((a, b) => a.title.localeCompare(b.title)).map((article) => (
                 <div key={article.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
                     <h3 className="font-medium text-gray-800">{article.title}</h3>
@@ -3238,9 +3456,11 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       }, [glossary]);
 
       const filtered = useMemo(() => {
-        if (!filterText) return glossary;
-        const q = filterText.toLowerCase();
-        return glossary.filter(t => t.name.toLowerCase().includes(q) || t.meaning.toLowerCase().includes(q));
+        const list = !filterText ? glossary : glossary.filter(t => {
+          const q = filterText.toLowerCase();
+          return t.name.toLowerCase().includes(q) || t.meaning.toLowerCase().includes(q);
+        });
+        return list.slice().sort((a, b) => a.name.localeCompare(b.name));
       }, [glossary, filterText]);
 
       const handleDelete = async (id) => {
@@ -3425,7 +3645,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {contacts.map((contact) => (
+              {contacts.slice().sort((a, b) => a.name.localeCompare(b.name)).map((contact) => (
                 <div key={contact.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div>
                     <span className="font-medium text-gray-800 text-sm">{contact.name}</span>
@@ -3444,6 +3664,204 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               {contacts.length === 0 && (
                 <div className="px-5 py-12 text-center text-gray-400 text-sm">No contacts yet. Add your first one.</div>
               )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // ADMIN TAB: PRICING
+    // ============================================================
+
+    function AdminPricingTab({ pricing, onEntityCreate, onEntityUpdate, onEntityDelete }) {
+      const [editingEntity, setEditingEntity] = useState(null);
+      const [showForm, setShowForm] = useState(false);
+
+      const handleDelete = async (id) => {
+        if (confirm('Delete this pricing entity and all its markup ranges?')) {
+          await onEntityDelete(id);
+        }
+      };
+
+      const handleSave = async (entityData) => {
+        if (editingEntity) {
+          await onEntityUpdate(editingEntity.id, entityData);
+        } else {
+          await onEntityCreate(entityData);
+        }
+        setShowForm(false);
+        setEditingEntity(null);
+      };
+
+      if (showForm || editingEntity) {
+        return (
+          <PricingEntityFormModal
+            entity={editingEntity}
+            onSave={handleSave}
+            onClose={() => { setShowForm(false); setEditingEntity(null); }}
+          />
+        );
+      }
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{pricing.length} pricing entit{pricing.length !== 1 ? 'ies' : 'y'}</p>
+            <button onClick={() => setShowForm(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add Entity</button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {pricing.slice().sort((a, b) => a.entityName.localeCompare(b.entityName)).map((entity) => (
+                <div key={entity.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div>
+                    <span className="font-medium text-gray-800 text-sm">{entity.entityName}</span>
+                    <span className="text-xs text-gray-400 ml-3">{(entity.ranges || []).length} range{(entity.ranges || []).length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingEntity(entity)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(entity.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pricing.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">No pricing entities yet. Add your first one.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // MODAL: PRICING ENTITY FORM
+    // ============================================================
+
+    function PricingEntityFormModal({ entity, onSave, onClose }) {
+      const [entityName, setEntityName] = useState(entity?.entityName || '');
+      const [ranges, setRanges] = useState(entity?.ranges || []);
+
+      const addRange = () => {
+        setRanges([...ranges, { from: '', to: '', markup: '' }]);
+      };
+
+      const updateRange = (index, field, value) => {
+        const updated = ranges.map((r, i) => {
+          if (i !== index) return r;
+          return { ...r, [field]: value };
+        });
+        setRanges(updated);
+      };
+
+      const removeRange = (index) => {
+        setRanges(ranges.filter((_, i) => i !== index));
+      };
+
+      const handleSave = () => {
+        const cleanRanges = ranges.map(r => ({
+          from: r.from === '' || r.from === null ? 0 : Number(r.from),
+          to: r.to === '' || r.to === null ? null : Number(r.to),
+          markup: r.markup === '' ? 0 : Number(r.markup)
+        })).sort((a, b) => (a.from || 0) - (b.from || 0));
+        onSave({ entityName: entityName.trim(), ranges: cleanRanges });
+      };
+
+      const canSave = entityName.trim().length > 0;
+
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-semibold">{entity ? 'Edit Pricing Entity' : 'Add Pricing Entity'}</h2>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-5 overflow-y-auto">
+              {/* Entity Name */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Customer / Entity Name</label>
+                <input
+                  type="text"
+                  value={entityName}
+                  onChange={(e) => setEntityName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="e.g., DAT, SAS, Private"
+                />
+              </div>
+
+              {/* Markup Ranges */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-medium text-gray-500">Markup Ranges</label>
+                  <button onClick={addRange} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Add Range</button>
+                </div>
+
+                {ranges.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg px-4 py-6 text-center">
+                    <p className="text-gray-400 text-sm">No ranges yet. Click "+ Add Range" to add your first markup range.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Header */}
+                    <div className="grid grid-cols-[1fr_1fr_100px_40px] gap-2 px-1">
+                      <span className="text-xs text-gray-400 font-medium">From (DKK)</span>
+                      <span className="text-xs text-gray-400 font-medium">To (DKK)</span>
+                      <span className="text-xs text-gray-400 font-medium">Markup %</span>
+                      <span></span>
+                    </div>
+                    {ranges.map((range, idx) => (
+                      <div key={idx} className="grid grid-cols-[1fr_1fr_100px_40px] gap-2 items-center">
+                        <input
+                          type="number"
+                          value={range.from}
+                          onChange={(e) => updateRange(idx, 'from', e.target.value)}
+                          placeholder="0"
+                          min="0"
+                          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        />
+                        <input
+                          type="number"
+                          value={range.to === null ? '' : range.to}
+                          onChange={(e) => updateRange(idx, 'to', e.target.value)}
+                          placeholder="No limit"
+                          min="0"
+                          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        />
+                        <input
+                          type="number"
+                          value={range.markup}
+                          onChange={(e) => updateRange(idx, 'markup', e.target.value)}
+                          placeholder="0"
+                          min="0"
+                          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        />
+                        <button
+                          onClick={() => removeRange(idx)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove range"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-3 flex-shrink-0">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+              >
+                {entity ? 'Save Changes' : 'Add Entity'}
+              </button>
             </div>
           </div>
         </div>
