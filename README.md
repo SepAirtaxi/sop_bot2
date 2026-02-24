@@ -1,27 +1,39 @@
-# SOP Assistant
+# CAT Onboard
 
-An AI-powered Standard Operating Procedure assistant for employee onboarding. Built with vanilla JavaScript, React (via CDN), and Google's Gemini AI.
+An AI-powered onboarding assistant for CAT Flyservice. Built with React (via CDN), Tailwind CSS, and Google's Gemini AI.
 
 ## Features
 
-- **Two Interaction Modes:**
-  - **View Documentation** - Chat-based search through SOPs
-  - **Step-by-Step Guide** - Card-based wizard that walks users through procedures
+### Ask CAT (AI Chat)
+The main page. An AI-powered chat interface using Google Gemini 2.5 Flash. New hires can ask free-form questions about procedures, contacts, terms, or anything related to CAT Flyservice. The AI has access to all SOPs, glossary, contacts, daily tasks, and knowledge base content. Supports two modes:
+- **Chat mode** — conversational Q&A with Markdown-rendered responses
+- **Wizard mode** — generates a step-by-step guided process as interactive cards
 
-- **Smart AI Guidance:**
-  - Asks clarifying questions before providing steps
-  - Recognizes context (e.g., EU vs non-EU shipments)
-  - Cross-references multiple SOPs when needed
+### Contacts
+Internal company directory displayed as a sortable table. Shows name, role, phone number, and email (with clickable mailto links) for each employee.
 
-- **Admin Panel:**
-  - Add/edit/delete SOPs
-  - Manage categories
-  - Copy-paste from Google Docs with auto section detection
+### Daily Tasks
+Searchable list of recurring daily tasks and procedures. Uses a two-panel layout: task list on the left, full Markdown content viewer on the right. Tasks are organized by category.
+
+### Glossary
+Aviation abbreviations, technical terms, and company-specific definitions. Filterable by category with a search bar that matches both term names and meanings. Entries are split into abbreviations (e.g., AOG, MEL) and general terms.
+
+### Knowledge Base
+A library of articles and reference material for new hires. Two-panel layout with category filter tabs, search, and full Markdown content viewer. Content is managed through the Admin panel.
+
+### Pricing
+Markup tables for customers and entities. Two-panel layout with a searchable entity list on the left and detailed pricing fields on the right. Each entity has custom label/value pairs and optional notes.
+
+### SOP Archive
+Browsable archive of all Standard Operating Procedures. Two-panel layout with category tabs, search, and a full Markdown viewer. Each SOP can also be launched as an AI-generated step-by-step wizard guide.
+
+### Admin Panel
+Tabbed management interface for all content types. Administrators can create, edit, and delete entries across six tabs: SOPs, Daily Tasks, Knowledge Base, Glossary, Contacts, and Pricing. SOP content supports Markdown and paste-from-Google-Docs with auto section detection.
 
 ## Project Structure
 
 ```
-sop-bot/
+cat-onboard/
 ├── index.html          # Main application (React via CDN)
 ├── api/
 │   └── chat.js         # Serverless function for Gemini API
@@ -51,7 +63,7 @@ Note: The deployed version uses a serverless function to keep the API key secure
 
 ```bash
 # Navigate to project folder
-cd sop-bot
+cd cat-onboard
 
 # Initialize git
 git init
@@ -60,10 +72,10 @@ git init
 git add .
 
 # Commit
-git commit -m "Initial commit - SOP Assistant"
+git commit -m "Initial commit - CAT Onboard"
 
 # Add your GitHub repo as remote (create repo on GitHub first)
-git remote add origin https://github.com/YOUR_USERNAME/sop-bot.git
+git remote add origin https://github.com/YOUR_USERNAME/cat-onboard.git
 
 # Push
 git push -u origin main
@@ -73,7 +85,7 @@ git push -u origin main
 
 1. Go to [vercel.com](https://vercel.com) and sign in with GitHub
 2. Click **"Add New Project"**
-3. Import your `sop-bot` repository
+3. Import your `cat-onboard` repository
 4. Before deploying, add your environment variable:
    - Click **"Environment Variables"**
    - Add: `GEMINI_API_KEY` = `your-api-key-here`
@@ -82,7 +94,7 @@ git push -u origin main
 ### Step 3: Access Your App
 
 After deployment, Vercel will give you a URL like:
-`https://sop-bot-xxxxx.vercel.app`
+`https://cat-onboard-xxxxx.vercel.app`
 
 Share this with your team!
 
@@ -120,15 +132,14 @@ credentials: { username: 'your-username', password: 'your-password' }
 - **Frontend:** React 18 (via CDN), Tailwind CSS
 - **AI:** Google Gemini 2.5 Flash
 - **Hosting:** Vercel (serverless functions + static hosting)
-- **Storage:** Browser localStorage (SOPs persist locally)
+- **Database:** Firebase Firestore (with localStorage fallback)
 
 ## Future Enhancements
 
-- [ ] Firebase integration for cloud SOP storage
-- [ ] User authentication with multiple users
+- [ ] User authentication with multiple users/roles
 - [ ] Analytics dashboard
 - [ ] PDF export of step-by-step guides
-- [ ] Multi-language support
+- [ ] Multi-language support (Danish/English)
 
 ## Troubleshooting
 
@@ -139,9 +150,8 @@ credentials: { username: 'your-username', password: 'your-password' }
 
 ### SOPs not saving
 
-- SOPs are stored in browser localStorage
-- Clear localStorage to reset to defaults
-- For persistent storage across devices, Firebase integration is needed
+- Data is stored in Firebase Firestore with localStorage as fallback
+- Clear localStorage to reset to defaults if Firebase is unavailable
 
 ## License
 
@@ -149,4 +159,4 @@ Private - CAT Flyservice Internal Use
 
 ---
 
-Built with ❤️ for CAT Flyservice
+Built for CAT Flyservice
