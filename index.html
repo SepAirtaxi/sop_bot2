@@ -50,20 +50,17 @@
     }
     .slide-in-right { animation: slideInRight 0.3s ease-out forwards; }
     .slide-out-right { animation: slideOutRight 0.3s ease-in forwards; }
-    /* Glossary term auto-highlight tooltips */
+    /* Glossary term auto-highlight */
     .glossary-term {
       color: #2563eb;
       border-bottom: 1px dotted #93c5fd;
       cursor: help;
-      position: relative;
       display: inline;
     }
-    .glossary-tooltip {
+    /* Singleton tooltip portal */
+    #glossary-tooltip-portal {
       display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
+      position: fixed;
       background: #1e293b;
       color: #f1f5f9;
       padding: 8px 12px;
@@ -72,21 +69,21 @@
       line-height: 1.5;
       width: max-content;
       max-width: 300px;
-      z-index: 50;
+      z-index: 9999;
       pointer-events: none;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    .glossary-tooltip::after {
-      content: '';
+    #glossary-tooltip-portal .gt-arrow {
       position: absolute;
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
       border: 5px solid transparent;
+    }
+    #glossary-tooltip-portal .gt-arrow.arrow-down {
+      top: 100%;
       border-top-color: #1e293b;
     }
-    .glossary-term:hover .glossary-tooltip {
-      display: block;
+    #glossary-tooltip-portal .gt-arrow.arrow-up {
+      bottom: 100%;
+      border-bottom-color: #1e293b;
     }
   </style>
 </head>
@@ -352,28 +349,39 @@
       const matched = new Set();
 
       // Process a text node — find and wrap glossary matches
+      // Uses segments to protect inserted HTML from being matched by subsequent terms
       const processTextNode = (text) => {
-        let result = text;
+        let segments = [{ t: text, p: false }]; // t=text, p=protected
         for (const item of sorted) {
           if (matched.has(item.id)) continue;
 
           const escapedName = item.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          // Abbreviations: case-sensitive. Terms: case-insensitive.
           const flags = item.type === 'abbreviation' ? '' : 'i';
           const regex = new RegExp(`\\b${escapedName}\\b`, flags);
 
-          const m = result.match(regex);
-          if (m) {
-            matched.add(item.id);
-            const matchedText = m[0];
-            const idx = m.index;
-            const tooltipContent = escapeHtml(item.meaning) +
-              (item.context ? `<br><span style="opacity:0.7;font-style:italic">${escapeHtml(item.context)}</span>` : '');
-            const replacement = `<span class="glossary-term">${matchedText}<span class="glossary-tooltip"><strong>${escapeHtml(item.name)}</strong> — ${tooltipContent}</span></span>`;
-            result = result.substring(0, idx) + replacement + result.substring(idx + matchedText.length);
+          let found = false;
+          const next = [];
+          for (const seg of segments) {
+            if (seg.p || found) { next.push(seg); continue; }
+            const m = seg.t.match(regex);
+            if (m) {
+              found = true;
+              matched.add(item.id);
+              const matchedText = m[0];
+              const idx = m.index;
+              const attrs = ` data-g-name="${escapeHtml(item.name)}" data-g-meaning="${escapeHtml(item.meaning)}"${item.context ? ` data-g-context="${escapeHtml(item.context)}"` : ''}`;
+              const replacement = `<span class="glossary-term"${attrs}>${matchedText}</span>`;
+              if (idx > 0) next.push({ t: seg.t.substring(0, idx), p: false });
+              next.push({ t: replacement, p: true });
+              const after = idx + matchedText.length;
+              if (after < seg.t.length) next.push({ t: seg.t.substring(after), p: false });
+            } else {
+              next.push(seg);
+            }
           }
+          segments = next;
         }
-        return result;
+        return segments.map(s => s.t).join('');
       };
 
       // Split HTML into tags and text segments, only process text outside skip-tags
@@ -4226,6 +4234,92 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
+  </script>
+
+  <!-- Glossary tooltip portal (singleton, positioned via JS) -->
+  <div id="glossary-tooltip-portal">
+    <div class="gt-content"></div>
+    <div class="gt-arrow"></div>
+  </div>
+  <script>
+  (function() {
+    const portal = document.getElementById('glossary-tooltip-portal');
+    const content = portal.querySelector('.gt-content');
+    const arrow = portal.querySelector('.gt-arrow');
+    const MARGIN = 8;
+
+    function showTooltip(term) {
+      const name = term.getAttribute('data-g-name');
+      const meaning = term.getAttribute('data-g-meaning');
+      const context = term.getAttribute('data-g-context');
+
+      let html = '<strong>' + name + '</strong> — ' + meaning;
+      if (context) {
+        html += '<br><span style="opacity:0.7;font-style:italic">' + context + '</span>';
+      }
+      content.innerHTML = html;
+
+      // Show offscreen first to measure
+      portal.style.display = 'block';
+      portal.style.left = '-9999px';
+      portal.style.top = '-9999px';
+
+      const rect = term.getBoundingClientRect();
+      const pw = portal.offsetWidth;
+      const ph = portal.offsetHeight;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Vertical: prefer above, flip below if no room
+      const spaceAbove = rect.top;
+      const spaceBelow = vh - rect.bottom;
+      let top, arrowClass;
+
+      if (spaceAbove >= ph + MARGIN + 5) {
+        top = rect.top - ph - 6;
+        arrowClass = 'gt-arrow arrow-down';
+      } else {
+        top = rect.bottom + 6;
+        arrowClass = 'gt-arrow arrow-up';
+      }
+
+      // Horizontal: center on term, clamp to viewport
+      const termCenter = rect.left + rect.width / 2;
+      let left = termCenter - pw / 2;
+
+      if (left < MARGIN) left = MARGIN;
+      if (left + pw > vw - MARGIN) left = vw - MARGIN - pw;
+
+      // Arrow points at term center
+      const arrowLeft = Math.max(10, Math.min(pw - 10, termCenter - left));
+
+      portal.style.left = left + 'px';
+      portal.style.top = top + 'px';
+
+      arrow.className = arrowClass;
+      arrow.style.left = arrowLeft + 'px';
+      arrow.style.transform = 'translateX(-50%)';
+    }
+
+    function hideTooltip() {
+      portal.style.display = 'none';
+    }
+
+    // Event delegation on document body
+    document.body.addEventListener('mouseenter', function(e) {
+      const term = e.target.closest('.glossary-term');
+      if (term && term.hasAttribute('data-g-name')) {
+        showTooltip(term);
+      }
+    }, true);
+
+    document.body.addEventListener('mouseleave', function(e) {
+      const term = e.target.closest('.glossary-term');
+      if (term && term.hasAttribute('data-g-name')) {
+        hideTooltip();
+      }
+    }, true);
+  })();
   </script>
 </body>
 </html>
