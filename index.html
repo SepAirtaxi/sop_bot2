@@ -1042,8 +1042,6 @@ Review the returned parts and take the necessary action to return them to stock 
     // DEFAULT GLOSSARY DATA
     // ============================================================
 
-    const GLOSSARY_VERSION = 2; // Bump this to force a re-seed of glossary data
-
     const INITIAL_GLOSSARY = [
       // === ABBREVIATIONS ===
       { id: '1', type: 'abbreviation', name: 'AMS', meaning: 'Aircraft Management System', context: 'Our inventory and ordering system', category: 'Systems' },
@@ -1333,12 +1331,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 await FirestoreService.seedCollection('sops', DEFAULT_SOPS);
                 loadedSops = DEFAULT_SOPS;
               }
-              const savedGlossaryVersion = parseInt(localStorage.getItem('sop_bot_glossary_version') || '0');
-              if (loadedGlossary.length === 0 || savedGlossaryVersion < GLOSSARY_VERSION) {
-                await FirestoreService.clearCollection('glossary');
+              if (loadedGlossary.length === 0) {
                 await FirestoreService.seedCollection('glossary', INITIAL_GLOSSARY);
                 loadedGlossary = INITIAL_GLOSSARY;
-                localStorage.setItem('sop_bot_glossary_version', String(GLOSSARY_VERSION));
               }
               if (loadedContacts.length === 0) {
                 await FirestoreService.seedCollection('contacts', INITIAL_CONTACTS);
@@ -1377,13 +1372,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             setDataSource('local');
           }
           if (!loadedGlossary) {
-            const savedGlossaryVersion = parseInt(localStorage.getItem('sop_bot_glossary_version') || '0');
-            if (savedGlossaryVersion < GLOSSARY_VERSION) {
-              loadedGlossary = INITIAL_GLOSSARY;
-              localStorage.setItem('sop_bot_glossary_version', String(GLOSSARY_VERSION));
-            } else {
-              loadedGlossary = LocalStorage.getGlossary() || INITIAL_GLOSSARY;
-            }
+            loadedGlossary = LocalStorage.getGlossary() || INITIAL_GLOSSARY;
             LocalStorage.saveGlossary(loadedGlossary);
           }
           if (!loadedContacts) {
