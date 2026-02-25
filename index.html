@@ -95,6 +95,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -116,8 +117,7 @@
         messagingSenderId: "108408950707",
         appId: "1:108408950707:web:71cca3e44baa224dbc85c6",
         measurementId: "G-JXD8E32TZJ"
-      },
-      credentials: { username: 'cat', password: 'cat1234' }
+      }
     };
 
     // ============================================================
@@ -125,10 +125,12 @@
     // ============================================================
 
     let db = null;
+    let auth = null;
     try {
       if (CONFIG.firebase.apiKey && CONFIG.firebase.apiKey !== "YOUR_API_KEY") {
         const app = firebase.initializeApp(CONFIG.firebase);
         db = firebase.firestore();
+        auth = firebase.auth();
       }
     } catch (e) {
       console.warn('Firebase not initialized — using placeholder config.', e);
@@ -1300,7 +1302,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function App() {
-      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [authLoading, setAuthLoading] = useState(true);
       const [sops, setSops] = useState([]);
       const [categories, setCategories] = useState([]);
       const [glossary, setGlossary] = useState([]);
@@ -1311,6 +1314,16 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [isLoading, setIsLoading] = useState(true);
       const [dataSource, setDataSource] = useState(null); // 'firestore' | 'local'
       const [dataError, setDataError] = useState(null);
+
+      // Firebase Auth listener
+      useEffect(() => {
+        if (!auth) { setAuthLoading(false); return; }
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+          setCurrentUser(user);
+          setAuthLoading(false);
+        });
+        return () => unsubscribe();
+      }, []);
 
       useEffect(() => {
         const init = async () => {
@@ -1448,24 +1461,13 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           }
           setCategories(loadedCategories);
 
-          const session = sessionStorage.getItem('sop_bot_session');
-          if (session === 'authenticated') {
-            setIsLoggedIn(true);
-          }
-
           setIsLoading(false);
         };
         init();
       }, []);
 
-      const handleLogin = () => {
-        sessionStorage.setItem('sop_bot_session', 'authenticated');
-        setIsLoggedIn(true);
-      };
-
       const handleLogout = () => {
-        sessionStorage.removeItem('sop_bot_session');
-        setIsLoggedIn(false);
+        if (auth) auth.signOut();
       };
 
       // -- SOP handlers (Firestore + localStorage cache) --
@@ -1683,22 +1685,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         LocalStorage.saveCategories(newCategories);
       };
 
-      if (isLoading) {
+      if (authLoading || isLoading) {
         return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center">
               <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading data...</p>
-              <p className="text-gray-400 text-xs mt-2">Connecting to database</p>
+              <p className="text-gray-600">{authLoading ? 'Checking authentication...' : 'Loading data...'}</p>
+              <p className="text-gray-400 text-xs mt-2">{authLoading ? 'Please wait' : 'Connecting to database'}</p>
             </div>
           </div>
         );
       }
 
-      if (!isLoggedIn) return <LoginScreen onLogin={handleLogin} />;
+      if (!currentUser) return <LoginScreen />;
 
       return (
         <AppShell
+          currentUser={currentUser}
           sops={sops}
           categories={categories}
           glossary={glossary}
@@ -1743,24 +1746,31 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // LOGIN SCREEN
     // ============================================================
 
-    function LoginScreen({ onLogin }) {
-      const [username, setUsername] = useState('');
+    function LoginScreen() {
+      const [email, setEmail] = useState('');
       const [password, setPassword] = useState('');
       const [error, setError] = useState('');
       const [isLoading, setIsLoading] = useState(false);
 
-      const handleSubmit = (e) => {
+      const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!auth) { setError('Authentication service unavailable'); return; }
         setIsLoading(true);
         setError('');
-        setTimeout(() => {
-          if (username === CONFIG.credentials.username && password === CONFIG.credentials.password) {
-            onLogin();
-          } else {
-            setError('Invalid username or password');
-            setIsLoading(false);
-          }
-        }, 500);
+        try {
+          await auth.signInWithEmailAndPassword(email, password);
+        } catch (err) {
+          const messages = {
+            'auth/invalid-email': 'Invalid email address',
+            'auth/user-not-found': 'No account found with this email',
+            'auth/wrong-password': 'Incorrect password',
+            'auth/invalid-credential': 'Invalid email or password',
+            'auth/too-many-requests': 'Too many attempts. Please try again later',
+            'auth/user-disabled': 'This account has been disabled',
+          };
+          setError(messages[err.code] || 'Login failed. Please try again.');
+          setIsLoading(false);
+        }
       };
 
       return (
@@ -1774,16 +1784,16 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="Enter username" disabled={isLoading} />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="Enter your email" disabled={isLoading} required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="Enter password" disabled={isLoading} />
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="Enter password" disabled={isLoading} required />
               </div>
               {error && (
                 <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   {error}
                 </div>
               )}
@@ -1791,7 +1801,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
-            <p className="text-center text-gray-400 text-sm mt-6">Copenhagen AirTaxi A/S</p>
+            <p className="text-center text-gray-400 text-sm mt-6">Need access? Contact <a href="mailto:sep@aircat.dk" className="text-blue-500 hover:text-blue-600">sep@aircat.dk</a></p>
           </div>
         </div>
       );
@@ -1802,7 +1812,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function AppShell(props) {
-      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
+      const { currentUser, sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
         dataSource, dataError, onDismissError,
         onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
         onCategoriesUpdate,
@@ -1917,7 +1927,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               })}
             </nav>
 
-            {/* Bottom Section: Admin + Logout */}
+            {/* Bottom Section: Admin + User + Logout */}
             <div className="px-3 py-3 border-t border-gray-100 space-y-1">
               <button
                 onClick={() => handleNavigate('admin')}
@@ -1930,6 +1940,11 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <NavIcon name="admin" className={`w-5 h-5 ${currentPage === 'admin' ? 'text-blue-500' : 'text-gray-400'}`} />
                 Admin
               </button>
+              {currentUser && (
+                <div className="px-3 py-2 text-xs text-gray-400 truncate" title={currentUser.email}>
+                  {currentUser.email}
+                </div>
+              )}
               <button
                 onClick={onLogout}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"

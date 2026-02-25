@@ -8,6 +8,7 @@ Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance co
 - **React 18 + Tailwind CSS** via CDN — no build step, no bundler
 - **Babel standalone** for JSX transpilation in-browser
 - **Firebase Firestore** for persistent data (live config in `CONFIG.firebase`)
+- **Firebase Authentication** (email + password) — admin creates accounts in Firebase Console
 - **LocalStorage** as fallback data store
 - **Vercel** for hosting + serverless functions
 - **Gemini 2.5 Flash** via `/api/chat.js` serverless proxy
@@ -35,7 +36,7 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | Lines (approx) | Section |
 |-----------------|---------|
 | 1–88 | HTML head, CSS styles, animations, glossary tooltip styles |
-| 99–131 | CONFIG + Firebase initialization |
+| 99–137 | CONFIG + Firebase initialization (Firestore + Auth) |
 | 132–241 | `FirestoreService` — generic CRUD + collection-specific helpers |
 | 242–297 | `LocalStorage` — fallback store for all collections |
 | 298–395 | Helpers: `timeAgo()`, formatters, `processContentLinks()`, `processGlossaryTerms()` |
@@ -82,7 +83,12 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 5. Data is passed down as props to page components
 
 ### Authentication
-Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `sessionStorage`)
+- Firebase Authentication with email + password (`firebase.auth().signInWithEmailAndPassword()`)
+- No self-registration — admin creates users in Firebase Console (Authentication > Users)
+- `onAuthStateChanged` listener in `App` manages `currentUser` state + `authLoading`
+- Persistent login across tabs/refreshes (handled by Firebase SDK)
+- Login screen shows "Need access? Contact sep@aircat.dk"
+- Logged-in user's email displayed in sidebar above logout button
 
 ### AI Chat (`AskCATPage`)
 - Two modes: **Chat** (free-form Q&A) and **Wizard** (step-by-step guided process)
@@ -144,7 +150,7 @@ Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `
 - `vercel --prod` for production deploy
 - SPA rewrites configured in `vercel.json`
 
-## Current Status (updated 2026-02-24)
+## Current Status (updated 2026-02-25)
 ### Completed
 - Full app shell with sidebar navigation (8 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
@@ -157,13 +163,14 @@ Simple hardcoded login: `cat` / `cat1234` (checked in `LoginScreen`, stored in `
 - Admin panel with tabs for all content types (SOPs, Daily Tasks, KB, Glossary, Contacts, Pricing)
 - Firebase Firestore integration with auto-seeding
 - LocalStorage fallback
-- Login screen
+- Firebase Authentication (email + password, admin-managed accounts, persistent sessions)
 - Auto-numbering for SOPs (SOP-001), Daily Tasks (DT-001), and KB articles (KB-001)
 - Cross-linking system: `[[SOP-001]]` / `[[DT-001]]` / `[[KB-001]]` syntax in Markdown with click-to-navigate
 - Glossary auto-highlight: glossary terms in SOP/DT/KB content automatically show blue with hover tooltips
 
 ### Planned / Not Yet Started
-- User authentication with multiple users/roles
+- Firestore security rules (restrict read/write to authenticated users)
+- Role-based access (admin vs regular user)
 - Analytics dashboard
 - PDF export of step-by-step guides
 - Multi-language support (Danish/English)
