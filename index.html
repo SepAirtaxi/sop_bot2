@@ -138,6 +138,10 @@
     // ============================================================
 
     const FirestoreService = {
+      _ensureDb() {
+        if (!db) throw new Error('Database not available. Please refresh the page.');
+      },
+
       // -- Helper: convert Firestore Timestamps to ISO strings --
       _convertTimestamps(data) {
         const result = { ...data };
@@ -148,7 +152,7 @@
 
       // -- Generic CRUD --
       async getAll(collectionName) {
-        if (!db) return [];
+        this._ensureDb();
         const snapshot = await db.collection(collectionName).get();
         return snapshot.docs.map(doc => ({
           id: doc.id,
@@ -157,7 +161,7 @@
       },
 
       async add(collectionName, data) {
-        if (!db) return null;
+        this._ensureDb();
         const { id, ...cleanData } = data;
         const docRef = await db.collection(collectionName).add({
           ...cleanData,
@@ -168,7 +172,7 @@
       },
 
       async update(collectionName, id, data) {
-        if (!db) return;
+        this._ensureDb();
         const { id: _id, ...cleanData } = data;
         await db.collection(collectionName).doc(id).update({
           ...cleanData,
@@ -177,13 +181,13 @@
       },
 
       async remove(collectionName, id) {
-        if (!db) return;
+        this._ensureDb();
         await db.collection(collectionName).doc(id).delete();
       },
 
       // -- Clear: delete all documents in a collection --
       async clearCollection(collectionName) {
-        if (!db) return;
+        this._ensureDb();
         const snapshot = await db.collection(collectionName).get();
         const batch = db.batch();
         snapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -192,7 +196,7 @@
 
       // -- Seed: write default data with specific doc IDs --
       async seedCollection(collectionName, items) {
-        if (!db) return;
+        this._ensureDb();
         const batch = db.batch();
         items.forEach(item => {
           const { id, ...data } = item;
@@ -244,60 +248,17 @@
     };
 
     // ============================================================
-    // LOCAL STORAGE (fallback until Firebase is configured)
+    // LOCAL STORAGE CLEANUP (one-time: remove legacy keys)
     // ============================================================
 
-    const LocalStorage = {
-      getSOPs: () => {
-        const stored = localStorage.getItem('sop_bot_sops');
-        return stored ? JSON.parse(stored) : null;
-      },
-      saveSOPs: (sops) => {
-        localStorage.setItem('sop_bot_sops', JSON.stringify(sops));
-      },
-      getGlossary: () => {
-        const stored = localStorage.getItem('sop_bot_glossary');
-        return stored ? JSON.parse(stored) : null;
-      },
-      saveGlossary: (glossary) => {
-        localStorage.setItem('sop_bot_glossary', JSON.stringify(glossary));
-      },
-      getContacts: () => {
-        const stored = localStorage.getItem('sop_bot_contacts');
-        return stored ? JSON.parse(stored) : null;
-      },
-      saveContacts: (contacts) => {
-        localStorage.setItem('sop_bot_contacts', JSON.stringify(contacts));
-      },
-      getDailyTasks: () => {
-        const stored = localStorage.getItem('sop_bot_daily_tasks');
-        return stored ? JSON.parse(stored) : null;
-      },
-      saveDailyTasks: (tasks) => {
-        localStorage.setItem('sop_bot_daily_tasks', JSON.stringify(tasks));
-      },
-      getKnowledgeBase: () => {
-        const stored = localStorage.getItem('sop_bot_knowledge_base');
-        return stored ? JSON.parse(stored) : null;
-      },
-      saveKnowledgeBase: (articles) => {
-        localStorage.setItem('sop_bot_knowledge_base', JSON.stringify(articles));
-      },
-      getPricing: () => {
-        const stored = localStorage.getItem('sop_bot_pricing');
-        return stored ? JSON.parse(stored) : null;
-      },
-      savePricing: (pricing) => {
-        localStorage.setItem('sop_bot_pricing', JSON.stringify(pricing));
-      },
-      getCategories: () => {
-        const stored = localStorage.getItem('sop_bot_categories');
-        return stored ? JSON.parse(stored) : null;
-      },
-      saveCategories: (categories) => {
-        localStorage.setItem('sop_bot_categories', JSON.stringify(categories));
-      }
-    };
+    (() => {
+      const legacyKeys = [
+        'sop_bot_sops', 'sop_bot_glossary', 'sop_bot_contacts',
+        'sop_bot_daily_tasks', 'sop_bot_knowledge_base', 'sop_bot_pricing',
+        'sop_bot_categories'
+      ];
+      legacyKeys.forEach(key => localStorage.removeItem(key));
+    })();
 
     // ============================================================
     // HELPER: RELATIVE TIME
@@ -1320,7 +1281,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [knowledgeBase, setKnowledgeBase] = useState([]);
       const [pricing, setPricing] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
-      const [dataSource, setDataSource] = useState(null); // 'firestore' | 'local'
       const [dataError, setDataError] = useState(null);
 
       // Firebase Auth listener
@@ -1335,139 +1295,85 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       useEffect(() => {
         const init = async () => {
-          let loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing;
+          if (!db) {
+            setDataError('Database not configured. Please contact your administrator.');
+            setIsLoading(false);
+            return;
+          }
 
-          // Try Firestore first
-          if (db) {
-            try {
-              loadedSops = await FirestoreService.getSOPs();
-              loadedGlossary = await FirestoreService.getGlossary();
-              loadedContacts = await FirestoreService.getContacts();
-              loadedDailyTasks = await FirestoreService.getDailyTasks();
-              loadedKnowledgeBase = await FirestoreService.getKnowledgeBase();
-              loadedPricing = await FirestoreService.getPricing();
+          try {
+            let [loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing] = await Promise.all([
+              FirestoreService.getSOPs(),
+              FirestoreService.getGlossary(),
+              FirestoreService.getContacts(),
+              FirestoreService.getDailyTasks(),
+              FirestoreService.getKnowledgeBase(),
+              FirestoreService.getPricing(),
+            ]);
 
-              // Seed defaults if collections are empty (first-time setup)
-              if (loadedSops.length === 0) {
-                await FirestoreService.seedCollection('sops', DEFAULT_SOPS);
-                loadedSops = DEFAULT_SOPS;
-              }
-              if (loadedGlossary.length === 0) {
-                await FirestoreService.seedCollection('glossary', INITIAL_GLOSSARY);
-                loadedGlossary = INITIAL_GLOSSARY;
-              }
-              if (loadedContacts.length === 0) {
-                await FirestoreService.seedCollection('contacts', INITIAL_CONTACTS);
-                loadedContacts = INITIAL_CONTACTS;
-              }
-              if (loadedDailyTasks.length === 0) {
-                await FirestoreService.seedCollection('dailyTasks', DEFAULT_DAILY_TASKS);
-                loadedDailyTasks = DEFAULT_DAILY_TASKS;
-              }
-              // Knowledge Base and Pricing start empty — no seeding needed
-
-              setDataSource('firestore');
-              // Cache to localStorage
-              LocalStorage.saveSOPs(loadedSops);
-              LocalStorage.saveGlossary(loadedGlossary);
-              LocalStorage.saveContacts(loadedContacts);
-              LocalStorage.saveDailyTasks(loadedDailyTasks);
-              LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
-              LocalStorage.savePricing(loadedPricing);
-            } catch (error) {
-              console.warn('Firestore unavailable, falling back to localStorage:', error);
-              setDataError('Could not connect to cloud database. Using local data.');
-              loadedSops = null;
-              loadedGlossary = null;
-              loadedContacts = null;
-              loadedDailyTasks = null;
-              loadedKnowledgeBase = null;
-              loadedPricing = null;
+            // Seed defaults if collections are empty (first-time setup)
+            if (loadedSops.length === 0) {
+              await FirestoreService.seedCollection('sops', DEFAULT_SOPS);
+              loadedSops = DEFAULT_SOPS;
             }
-          }
-
-          // Fallback to localStorage
-          if (!loadedSops) {
-            loadedSops = LocalStorage.getSOPs() || DEFAULT_SOPS;
-            LocalStorage.saveSOPs(loadedSops);
-            setDataSource('local');
-          }
-          if (!loadedGlossary) {
-            loadedGlossary = LocalStorage.getGlossary() || INITIAL_GLOSSARY;
-            LocalStorage.saveGlossary(loadedGlossary);
-          }
-          if (!loadedContacts) {
-            loadedContacts = LocalStorage.getContacts() || INITIAL_CONTACTS;
-            LocalStorage.saveContacts(loadedContacts);
-          }
-          if (!loadedDailyTasks) {
-            loadedDailyTasks = LocalStorage.getDailyTasks() || DEFAULT_DAILY_TASKS;
-            LocalStorage.saveDailyTasks(loadedDailyTasks);
-          }
-          if (!loadedKnowledgeBase) {
-            loadedKnowledgeBase = LocalStorage.getKnowledgeBase() || [];
-            LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
-          }
-          if (!loadedPricing) {
-            loadedPricing = LocalStorage.getPricing() || [];
-            LocalStorage.savePricing(loadedPricing);
-          }
-
-          // Migrate SOPs missing sopNumber
-          const unnumbered = loadedSops.filter(s => !s.sopNumber);
-          if (unnumbered.length > 0) {
-            let maxNum = loadedSops.reduce((max, s) => Math.max(max, s.sopNumber || 0), 0);
-            unnumbered.sort((a, b) => a.title.localeCompare(b.title));
-            unnumbered.forEach(s => { s.sopNumber = ++maxNum; });
-            LocalStorage.saveSOPs(loadedSops);
-            if (db) {
-              unnumbered.forEach(s => {
-                FirestoreService.updateSOP(s.id, { sopNumber: s.sopNumber }).catch(() => {});
-              });
+            if (loadedGlossary.length === 0) {
+              await FirestoreService.seedCollection('glossary', INITIAL_GLOSSARY);
+              loadedGlossary = INITIAL_GLOSSARY;
             }
-          }
-
-          // Migrate Daily Tasks missing dtNumber
-          const unnumberedDt = loadedDailyTasks.filter(t => !t.dtNumber);
-          if (unnumberedDt.length > 0) {
-            let maxDt = loadedDailyTasks.reduce((max, t) => Math.max(max, t.dtNumber || 0), 0);
-            unnumberedDt.sort((a, b) => a.title.localeCompare(b.title));
-            unnumberedDt.forEach(t => { t.dtNumber = ++maxDt; });
-            LocalStorage.saveDailyTasks(loadedDailyTasks);
-            if (db) {
-              unnumberedDt.forEach(t => {
-                FirestoreService.updateDailyTask(t.id, { dtNumber: t.dtNumber }).catch(() => {});
-              });
+            if (loadedContacts.length === 0) {
+              await FirestoreService.seedCollection('contacts', INITIAL_CONTACTS);
+              loadedContacts = INITIAL_CONTACTS;
             }
-          }
-
-          // Migrate Knowledge Base articles missing kbNumber
-          const unnumberedKb = loadedKnowledgeBase.filter(a => !a.kbNumber);
-          if (unnumberedKb.length > 0) {
-            let maxKb = loadedKnowledgeBase.reduce((max, a) => Math.max(max, a.kbNumber || 0), 0);
-            unnumberedKb.sort((a, b) => a.title.localeCompare(b.title));
-            unnumberedKb.forEach(a => { a.kbNumber = ++maxKb; });
-            LocalStorage.saveKnowledgeBase(loadedKnowledgeBase);
-            if (db) {
-              unnumberedKb.forEach(a => {
-                FirestoreService.updateKBArticle(a.id, { kbNumber: a.kbNumber }).catch(() => {});
-              });
+            if (loadedDailyTasks.length === 0) {
+              await FirestoreService.seedCollection('dailyTasks', DEFAULT_DAILY_TASKS);
+              loadedDailyTasks = DEFAULT_DAILY_TASKS;
             }
-          }
+            // Knowledge Base and Pricing start empty — no seeding needed
 
-          setSops(loadedSops);
-          setGlossary(loadedGlossary);
-          setContacts(loadedContacts);
-          setDailyTasks(loadedDailyTasks);
-          setKnowledgeBase(loadedKnowledgeBase);
-          setPricing(loadedPricing);
+            // Migrate SOPs missing sopNumber
+            const unnumbered = loadedSops.filter(s => !s.sopNumber);
+            if (unnumbered.length > 0) {
+              let maxNum = loadedSops.reduce((max, s) => Math.max(max, s.sopNumber || 0), 0);
+              unnumbered.sort((a, b) => a.title.localeCompare(b.title));
+              for (const s of unnumbered) {
+                s.sopNumber = ++maxNum;
+                await FirestoreService.updateSOP(s.id, { sopNumber: s.sopNumber });
+              }
+            }
 
-          let loadedCategories = LocalStorage.getCategories();
-          if (!loadedCategories) {
-            loadedCategories = DEFAULT_CATEGORIES;
-            LocalStorage.saveCategories(loadedCategories);
+            // Migrate Daily Tasks missing dtNumber
+            const unnumberedDt = loadedDailyTasks.filter(t => !t.dtNumber);
+            if (unnumberedDt.length > 0) {
+              let maxDt = loadedDailyTasks.reduce((max, t) => Math.max(max, t.dtNumber || 0), 0);
+              unnumberedDt.sort((a, b) => a.title.localeCompare(b.title));
+              for (const t of unnumberedDt) {
+                t.dtNumber = ++maxDt;
+                await FirestoreService.updateDailyTask(t.id, { dtNumber: t.dtNumber });
+              }
+            }
+
+            // Migrate Knowledge Base articles missing kbNumber
+            const unnumberedKb = loadedKnowledgeBase.filter(a => !a.kbNumber);
+            if (unnumberedKb.length > 0) {
+              let maxKb = loadedKnowledgeBase.reduce((max, a) => Math.max(max, a.kbNumber || 0), 0);
+              unnumberedKb.sort((a, b) => a.title.localeCompare(b.title));
+              for (const a of unnumberedKb) {
+                a.kbNumber = ++maxKb;
+                await FirestoreService.updateKBArticle(a.id, { kbNumber: a.kbNumber });
+              }
+            }
+
+            setSops(loadedSops);
+            setGlossary(loadedGlossary);
+            setContacts(loadedContacts);
+            setDailyTasks(loadedDailyTasks);
+            setKnowledgeBase(loadedKnowledgeBase);
+            setPricing(loadedPricing);
+            setCategories(DEFAULT_CATEGORIES);
+          } catch (error) {
+            console.error('Failed to load data from Firestore:', error);
+            setDataError('Could not connect to the database. Please check your connection and refresh.');
           }
-          setCategories(loadedCategories);
 
           setIsLoading(false);
         };
@@ -1478,219 +1384,155 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         if (auth) auth.signOut();
       };
 
-      // -- SOP handlers (Firestore + localStorage cache) --
+      // -- SOP handlers (Firestore-only) --
       const handleSopsUpdate = (newSops) => {
         setSops(newSops);
-        LocalStorage.saveSOPs(newSops);
       };
 
       const handleSopCreate = async (sopData) => {
         const now = new Date().toISOString();
         const maxNumber = sops.reduce((max, s) => Math.max(max, s.sopNumber || 0), 0);
         const sopNumber = maxNumber + 1;
-        let newId = `sop-${Date.now()}`;
-        try {
-          const firestoreId = await FirestoreService.saveSOP({ ...sopData, sopNumber });
-          if (firestoreId) newId = firestoreId;
-        } catch (e) { console.warn('Firestore create failed:', e); }
-        const newSop = { ...sopData, id: newId, sopNumber, createdAt: now, updatedAt: now };
+        const firestoreId = await FirestoreService.saveSOP({ ...sopData, sopNumber });
+        const newSop = { ...sopData, id: firestoreId, sopNumber, createdAt: now, updatedAt: now };
         const updated = [...sops, newSop].sort((a, b) => (a.sopNumber || 0) - (b.sopNumber || 0));
         setSops(updated);
-        LocalStorage.saveSOPs(updated);
-        return newId;
+        return firestoreId;
       };
 
       const handleSopUpdate = async (id, sopData) => {
         const now = new Date().toISOString();
-        try { await FirestoreService.updateSOP(id, sopData); } catch (e) { console.warn('Firestore update failed:', e); }
+        await FirestoreService.updateSOP(id, sopData);
         const updated = sops.map(s => s.id === id ? { ...s, ...sopData, updatedAt: now } : s);
         setSops(updated);
-        LocalStorage.saveSOPs(updated);
       };
 
       const handleSopDelete = async (id) => {
-        try { await FirestoreService.deleteSOP(id); } catch (e) { console.warn('Firestore delete failed:', e); }
-        const updated = sops.filter(s => s.id !== id);
-        setSops(updated);
-        LocalStorage.saveSOPs(updated);
+        await FirestoreService.deleteSOP(id);
+        setSops(prev => prev.filter(s => s.id !== id));
       };
 
       // -- Glossary handlers --
       const handleGlossaryUpdate = (newGlossary) => {
         setGlossary(newGlossary);
-        LocalStorage.saveGlossary(newGlossary);
       };
 
       const handleTermCreate = async (termData) => {
-        let newId = `gl-${Date.now()}`;
-        try {
-          const firestoreId = await FirestoreService.saveGlossaryEntry(termData);
-          if (firestoreId) newId = firestoreId;
-        } catch (e) { console.warn('Firestore create failed:', e); }
-        const updated = [...glossary, { ...termData, id: newId }].sort((a, b) => a.name.localeCompare(b.name));
+        const firestoreId = await FirestoreService.saveGlossaryEntry(termData);
+        const updated = [...glossary, { ...termData, id: firestoreId }].sort((a, b) => a.name.localeCompare(b.name));
         setGlossary(updated);
-        LocalStorage.saveGlossary(updated);
-        return newId;
+        return firestoreId;
       };
 
       const handleTermUpdate = async (id, termData) => {
-        try { await FirestoreService.updateGlossaryEntry(id, termData); } catch (e) { console.warn('Firestore update failed:', e); }
-        const updated = glossary.map(t => t.id === id ? { ...t, ...termData } : t);
-        setGlossary(updated);
-        LocalStorage.saveGlossary(updated);
+        await FirestoreService.updateGlossaryEntry(id, termData);
+        setGlossary(prev => prev.map(t => t.id === id ? { ...t, ...termData } : t));
       };
 
       const handleTermDelete = async (id) => {
-        try { await FirestoreService.deleteGlossaryEntry(id); } catch (e) { console.warn('Firestore delete failed:', e); }
-        const updated = glossary.filter(t => t.id !== id);
-        setGlossary(updated);
-        LocalStorage.saveGlossary(updated);
+        await FirestoreService.deleteGlossaryEntry(id);
+        setGlossary(prev => prev.filter(t => t.id !== id));
       };
 
       // -- Contact handlers --
       const handleContactsUpdate = (newContacts) => {
         setContacts(newContacts);
-        LocalStorage.saveContacts(newContacts);
       };
 
       const handleContactCreate = async (contactData) => {
-        let newId = `ct-${Date.now()}`;
-        try {
-          const firestoreId = await FirestoreService.saveContact(contactData);
-          if (firestoreId) newId = firestoreId;
-        } catch (e) { console.warn('Firestore create failed:', e); }
-        const updated = [...contacts, { ...contactData, id: newId }].sort((a, b) => a.name.localeCompare(b.name));
+        const firestoreId = await FirestoreService.saveContact(contactData);
+        const updated = [...contacts, { ...contactData, id: firestoreId }].sort((a, b) => a.name.localeCompare(b.name));
         setContacts(updated);
-        LocalStorage.saveContacts(updated);
-        return newId;
+        return firestoreId;
       };
 
       const handleContactUpdate = async (id, contactData) => {
-        try { await FirestoreService.updateContact(id, contactData); } catch (e) { console.warn('Firestore update failed:', e); }
-        const updated = contacts.map(c => c.id === id ? { ...c, ...contactData } : c);
-        setContacts(updated);
-        LocalStorage.saveContacts(updated);
+        await FirestoreService.updateContact(id, contactData);
+        setContacts(prev => prev.map(c => c.id === id ? { ...c, ...contactData } : c));
       };
 
       const handleContactDelete = async (id) => {
-        try { await FirestoreService.deleteContact(id); } catch (e) { console.warn('Firestore delete failed:', e); }
-        const updated = contacts.filter(c => c.id !== id);
-        setContacts(updated);
-        LocalStorage.saveContacts(updated);
+        await FirestoreService.deleteContact(id);
+        setContacts(prev => prev.filter(c => c.id !== id));
       };
 
       // -- Daily Tasks handlers --
       const handleDailyTasksUpdate = (newTasks) => {
         setDailyTasks(newTasks);
-        LocalStorage.saveDailyTasks(newTasks);
       };
 
       const handleDailyTaskCreate = async (taskData) => {
         const now = new Date().toISOString();
         const maxDtNumber = dailyTasks.reduce((max, t) => Math.max(max, t.dtNumber || 0), 0);
         const dtNumber = maxDtNumber + 1;
-        let newId = `dt-${Date.now()}`;
-        try {
-          const firestoreId = await FirestoreService.saveDailyTask({ ...taskData, dtNumber });
-          if (firestoreId) newId = firestoreId;
-        } catch (e) { console.warn('Firestore create failed:', e); }
-        const newTask = { ...taskData, id: newId, dtNumber, createdAt: now, updatedAt: now };
+        const firestoreId = await FirestoreService.saveDailyTask({ ...taskData, dtNumber });
+        const newTask = { ...taskData, id: firestoreId, dtNumber, createdAt: now, updatedAt: now };
         const updated = [...dailyTasks, newTask].sort((a, b) => (a.dtNumber || 0) - (b.dtNumber || 0));
         setDailyTasks(updated);
-        LocalStorage.saveDailyTasks(updated);
-        return newId;
+        return firestoreId;
       };
 
       const handleDailyTaskUpdate = async (id, taskData) => {
         const now = new Date().toISOString();
-        try { await FirestoreService.updateDailyTask(id, taskData); } catch (e) { console.warn('Firestore update failed:', e); }
-        const updated = dailyTasks.map(t => t.id === id ? { ...t, ...taskData, updatedAt: now } : t);
-        setDailyTasks(updated);
-        LocalStorage.saveDailyTasks(updated);
+        await FirestoreService.updateDailyTask(id, taskData);
+        setDailyTasks(prev => prev.map(t => t.id === id ? { ...t, ...taskData, updatedAt: now } : t));
       };
 
       const handleDailyTaskDelete = async (id) => {
-        try { await FirestoreService.deleteDailyTask(id); } catch (e) { console.warn('Firestore delete failed:', e); }
-        const updated = dailyTasks.filter(t => t.id !== id);
-        setDailyTasks(updated);
-        LocalStorage.saveDailyTasks(updated);
+        await FirestoreService.deleteDailyTask(id);
+        setDailyTasks(prev => prev.filter(t => t.id !== id));
       };
 
       // -- Knowledge Base handlers --
       const handleKBUpdate = (newArticles) => {
         setKnowledgeBase(newArticles);
-        LocalStorage.saveKnowledgeBase(newArticles);
       };
 
       const handleKBCreate = async (articleData) => {
         const now = new Date().toISOString();
         const maxKbNumber = knowledgeBase.reduce((max, a) => Math.max(max, a.kbNumber || 0), 0);
         const kbNumber = maxKbNumber + 1;
-        let newId = `kb-${Date.now()}`;
-        try {
-          const firestoreId = await FirestoreService.saveKBArticle({ ...articleData, kbNumber });
-          if (firestoreId) newId = firestoreId;
-        } catch (e) { console.warn('Firestore create failed:', e); }
-        const newArticle = { ...articleData, id: newId, kbNumber, createdAt: now, updatedAt: now };
+        const firestoreId = await FirestoreService.saveKBArticle({ ...articleData, kbNumber });
+        const newArticle = { ...articleData, id: firestoreId, kbNumber, createdAt: now, updatedAt: now };
         const updated = [...knowledgeBase, newArticle].sort((a, b) => (a.kbNumber || 0) - (b.kbNumber || 0));
         setKnowledgeBase(updated);
-        LocalStorage.saveKnowledgeBase(updated);
-        return newId;
+        return firestoreId;
       };
 
       const handleKBArticleUpdate = async (id, articleData) => {
         const now = new Date().toISOString();
-        try { await FirestoreService.updateKBArticle(id, articleData); } catch (e) { console.warn('Firestore update failed:', e); }
-        const updated = knowledgeBase.map(a => a.id === id ? { ...a, ...articleData, updatedAt: now } : a);
-        setKnowledgeBase(updated);
-        LocalStorage.saveKnowledgeBase(updated);
+        await FirestoreService.updateKBArticle(id, articleData);
+        setKnowledgeBase(prev => prev.map(a => a.id === id ? { ...a, ...articleData, updatedAt: now } : a));
       };
 
       const handleKBDelete = async (id) => {
-        try { await FirestoreService.deleteKBArticle(id); } catch (e) { console.warn('Firestore delete failed:', e); }
-        const updated = knowledgeBase.filter(a => a.id !== id);
-        setKnowledgeBase(updated);
-        LocalStorage.saveKnowledgeBase(updated);
+        await FirestoreService.deleteKBArticle(id);
+        setKnowledgeBase(prev => prev.filter(a => a.id !== id));
       };
 
       // -- Pricing handlers --
       const handlePricingUpdate = (newPricing) => {
         setPricing(newPricing);
-        LocalStorage.savePricing(newPricing);
       };
 
       const handlePricingEntityCreate = async (entityData) => {
         const now = new Date().toISOString();
-        let newId = `pr-${Date.now()}`;
-        try {
-          const firestoreId = await FirestoreService.savePricingEntity(entityData);
-          if (firestoreId) newId = firestoreId;
-        } catch (e) { console.warn('Firestore create failed:', e); }
-        const newEntity = { ...entityData, id: newId, createdAt: now, updatedAt: now };
+        const firestoreId = await FirestoreService.savePricingEntity(entityData);
+        const newEntity = { ...entityData, id: firestoreId, createdAt: now, updatedAt: now };
         const updated = [...pricing, newEntity].sort((a, b) => a.entityName.localeCompare(b.entityName));
         setPricing(updated);
-        LocalStorage.savePricing(updated);
-        return newId;
+        return firestoreId;
       };
 
       const handlePricingEntityUpdate = async (id, entityData) => {
         const now = new Date().toISOString();
-        try { await FirestoreService.updatePricingEntity(id, entityData); } catch (e) { console.warn('Firestore update failed:', e); }
-        const updated = pricing.map(p => p.id === id ? { ...p, ...entityData, updatedAt: now } : p);
-        setPricing(updated);
-        LocalStorage.savePricing(updated);
+        await FirestoreService.updatePricingEntity(id, entityData);
+        setPricing(prev => prev.map(p => p.id === id ? { ...p, ...entityData, updatedAt: now } : p));
       };
 
       const handlePricingEntityDelete = async (id) => {
-        try { await FirestoreService.deletePricingEntity(id); } catch (e) { console.warn('Firestore delete failed:', e); }
-        const updated = pricing.filter(p => p.id !== id);
-        setPricing(updated);
-        LocalStorage.savePricing(updated);
-      };
-
-      const handleCategoriesUpdate = (newCategories) => {
-        setCategories(newCategories);
-        LocalStorage.saveCategories(newCategories);
+        await FirestoreService.deletePricingEntity(id);
+        setPricing(prev => prev.filter(p => p.id !== id));
       };
 
       if (authLoading || isLoading) {
@@ -1717,14 +1559,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           dailyTasks={dailyTasks}
           knowledgeBase={knowledgeBase}
           pricing={pricing}
-          dataSource={dataSource}
           dataError={dataError}
           onDismissError={() => setDataError(null)}
           onSopsUpdate={handleSopsUpdate}
           onSopCreate={handleSopCreate}
           onSopUpdate={handleSopUpdate}
           onSopDelete={handleSopDelete}
-          onCategoriesUpdate={handleCategoriesUpdate}
           onGlossaryUpdate={handleGlossaryUpdate}
           onTermCreate={handleTermCreate}
           onTermUpdate={handleTermUpdate}
@@ -1821,9 +1661,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
     function AppShell(props) {
       const { currentUser, sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
-        dataSource, dataError, onDismissError,
+        dataError, onDismissError,
         onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
-        onCategoriesUpdate,
         onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
         onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
         onDailyTasksUpdate, onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
@@ -1874,7 +1713,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onSopCreate={onSopCreate}
                 onSopUpdate={onSopUpdate}
                 onSopDelete={onSopDelete}
-                onCategoriesUpdate={onCategoriesUpdate}
                 onGlossaryUpdate={onGlossaryUpdate}
                 onTermCreate={onTermCreate}
                 onTermUpdate={onTermUpdate}
@@ -1997,6 +1835,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [isLoading, setIsLoading] = useState(false);
       const [guide, setGuide] = useState(null); // { title, steps[], currentIndex, completed }
       const [viewMode, setViewMode] = useState('chat'); // 'chat' | 'wizard'
+      const [isExpanded, setIsExpanded] = useState(false);
       const messagesEndRef = useRef(null);
       const inputRef = useRef(null);
       const lastQuestionRef = useRef('');
@@ -2153,15 +1992,33 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <h1 className="text-lg font-semibold text-gray-800">Ask CAT</h1>
                 <p className="text-xs text-gray-400 mt-0.5">Your AI assistant for procedures, terms, and questions</p>
               </div>
-              {guide && !guide.completed && (
+              <div className="flex gap-2">
+                {guide && !guide.completed && (
+                  <button
+                    onClick={() => setViewMode('wizard')}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-medium rounded-lg transition-colors border border-emerald-200"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    Return to guide (step {guide.currentIndex + 1}/{guide.steps.length})
+                  </button>
+                )}
                 <button
-                  onClick={() => setViewMode('wizard')}
-                  className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-medium rounded-lg transition-colors border border-emerald-200"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                  Return to guide (step {guide.currentIndex + 1}/{guide.steps.length})
+                  {isExpanded ? (
+                    <React.Fragment>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+                      Collapse view
+                    </React.Fragment>
+                  ) : (
+                    <React.Fragment>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                      Expand view
+                    </React.Fragment>
+                  )}
                 </button>
-              )}
+              </div>
             </div>
           </div>
 
@@ -2174,7 +2031,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <span className="text-white text-xs font-bold">C</span>
                   </div>
                 )}
-                <div className={`max-w-[75%] px-4 py-3 rounded-2xl ${
+                <div className={`${isExpanded ? 'max-w-[90%]' : 'max-w-[75%]'} px-4 py-3 rounded-2xl ${
                   msg.type === 'user'
                     ? 'bg-blue-500 text-white rounded-br-md'
                     : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md'
@@ -2375,6 +2232,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [guide, setGuide] = useState(null);
       const [guideLoading, setGuideLoading] = useState(false);
       const [guideError, setGuideError] = useState(null);
+      const [isExpanded, setIsExpanded] = useState(false);
       const contentRef = useRef(null);
 
       const categories = useMemo(() => {
@@ -2483,7 +2341,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       return (
         <div className="h-full flex">
           {/* Left Panel — SOP List */}
-          <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          {!isExpanded && <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
             {/* Header & Search */}
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-3">SOP Archive</h2>
@@ -2538,7 +2396,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
-                      {sop.sopNumber && <div className="text-xs text-gray-400 font-mono">{formatSopNumber(sop.sopNumber)}</div>}
+                      {sop.sopNumber && <div className="text-sm text-blue-600 font-bold font-mono">{formatSopNumber(sop.sopNumber)}</div>}
                       <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                         {sop.title}
                       </div>
@@ -2553,7 +2411,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">{filteredSops.length} of {sops.length} SOPs</p>
             </div>
-          </div>
+          </div>}
 
           {/* Right Panel — SOP Content */}
           <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
@@ -2566,7 +2424,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <p className="text-sm text-gray-400">Choose a procedure from the list to read its full content</p>
               </div>
             ) : (
-              <div className="max-w-5xl mx-auto px-8 py-8">
+              <div className={`${isExpanded ? '' : 'max-w-5xl'} mx-auto px-8 py-8`}>
                 {/* SOP Header */}
                 <div className="flex items-start justify-between mb-6">
                   <div>
@@ -2577,6 +2435,22 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <h1 className="text-2xl font-bold text-gray-900">{selectedSop.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
+                    <button
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {isExpanded ? (
+                        <React.Fragment>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+                          Collapse view
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                          Expand view
+                        </React.Fragment>
+                      )}
+                    </button>
                     <button
                       onClick={startGuidedProcess}
                       disabled={guideLoading}
@@ -2633,6 +2507,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     function DailyTasksPage({ dailyTasks, glossary, onNavigate, onCrossLink, deepLinkTarget, onClearDeepLink }) {
       const [selectedTaskId, setSelectedTaskId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
+      const [isExpanded, setIsExpanded] = useState(false);
       const contentRef = useRef(null);
 
       const filteredTasks = useMemo(() => {
@@ -2688,7 +2563,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       return (
         <div className="h-full flex">
           {/* Left Panel — Task List */}
-          <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          {!isExpanded && <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-3">Daily Tasks</h2>
               <div className="relative">
@@ -2725,7 +2600,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
-                      {task.dtNumber && <div className="text-xs text-gray-400 font-mono">{formatDtNumber(task.dtNumber)}</div>}
+                      {task.dtNumber && <div className="text-sm text-blue-600 font-bold font-mono">{formatDtNumber(task.dtNumber)}</div>}
                       <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                         {task.title}
                       </div>
@@ -2739,7 +2614,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">{filteredTasks.length} of {dailyTasks.length} tasks</p>
             </div>
-          </div>
+          </div>}
 
           {/* Right Panel — Task Content */}
           <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
@@ -2752,7 +2627,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <p className="text-sm text-gray-400">Choose a daily task from the list to read its details</p>
               </div>
             ) : (
-              <div className="max-w-5xl mx-auto px-8 py-8">
+              <div className={`${isExpanded ? '' : 'max-w-5xl'} mx-auto px-8 py-8`}>
                 <div className="flex items-start justify-between mb-6">
                   <div>
                     <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
@@ -2761,13 +2636,31 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     {selectedTask.dtNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatDtNumber(selectedTask.dtNumber)}</div>}
                     <h1 className="text-2xl font-bold text-gray-900">{selectedTask.title}</h1>
                   </div>
-                  <button
-                    onClick={() => onNavigate('ask-cat')}
-                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0 ml-4"
-                  >
-                    <NavIcon name="chat" className="w-4 h-4 text-white" />
-                    Ask CAT about this
-                  </button>
+                  <div className="flex gap-2 flex-shrink-0 ml-4">
+                    <button
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {isExpanded ? (
+                        <React.Fragment>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+                          Collapse view
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                          Expand view
+                        </React.Fragment>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => onNavigate('ask-cat')}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <NavIcon name="chat" className="w-4 h-4 text-white" />
+                      Ask CAT about this
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
                   {renderContent(selectedTask.content)}
@@ -2787,6 +2680,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [selectedArticleId, setSelectedArticleId] = useState(null);
       const [searchQuery, setSearchQuery] = useState('');
       const [activeCategory, setActiveCategory] = useState('All');
+      const [isExpanded, setIsExpanded] = useState(false);
       const contentRef = useRef(null);
 
       const categories = useMemo(() => {
@@ -2850,7 +2744,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       return (
         <div className="h-full flex">
           {/* Left Panel — Article List */}
-          <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          {!isExpanded && <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-3">Knowledge Base</h2>
               <div className="relative">
@@ -2906,7 +2800,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
-                      {article.kbNumber && <div className="text-xs text-gray-400 font-mono">{formatKbNumber(article.kbNumber)}</div>}
+                      {article.kbNumber && <div className="text-sm text-blue-600 font-bold font-mono">{formatKbNumber(article.kbNumber)}</div>}
                       <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                         {article.title}
                       </div>
@@ -2920,7 +2814,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">{filteredArticles.length} of {knowledgeBase.length} articles</p>
             </div>
-          </div>
+          </div>}
 
           {/* Right Panel — Article Content */}
           <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
@@ -2933,7 +2827,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <p className="text-sm text-gray-400">{knowledgeBase.length === 0 ? 'Create articles from the Admin panel' : 'Choose an article from the list to read its content'}</p>
               </div>
             ) : (
-              <div className="max-w-5xl mx-auto px-8 py-8">
+              <div className={`${isExpanded ? '' : 'max-w-5xl'} mx-auto px-8 py-8`}>
                 <div className="flex items-start justify-between mb-6">
                   <div>
                     <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
@@ -2942,13 +2836,31 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     {selectedArticle.kbNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatKbNumber(selectedArticle.kbNumber)}</div>}
                     <h1 className="text-2xl font-bold text-gray-900">{selectedArticle.title}</h1>
                   </div>
-                  <button
-                    onClick={() => onNavigate('ask-cat')}
-                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0 ml-4"
-                  >
-                    <NavIcon name="chat" className="w-4 h-4 text-white" />
-                    Ask CAT about this
-                  </button>
+                  <div className="flex gap-2 flex-shrink-0 ml-4">
+                    <button
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {isExpanded ? (
+                        <React.Fragment>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+                          Collapse view
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                          Expand view
+                        </React.Fragment>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => onNavigate('ask-cat')}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <NavIcon name="chat" className="w-4 h-4 text-white" />
+                      Ask CAT about this
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
                   {renderContent(selectedArticle.content)}
@@ -3262,7 +3174,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
     function AdminPage(props) {
       const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
-        onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete, onCategoriesUpdate,
+        onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
         onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
         onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
         onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
@@ -3304,7 +3216,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onSopCreate={onSopCreate}
                 onSopUpdate={onSopUpdate}
                 onSopDelete={onSopDelete}
-                onCategoriesUpdate={onCategoriesUpdate}
               />
             )}
             {activeTab === 'dailyTasks' && (
@@ -3356,14 +3267,15 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ADMIN TAB: SOPs
     // ============================================================
 
-    function AdminSOPsTab({ sops, categories, onSopCreate, onSopUpdate, onSopDelete, onCategoriesUpdate }) {
+    function AdminSOPsTab({ sops, categories, onSopCreate, onSopUpdate, onSopDelete }) {
       const [editingSop, setEditingSop] = useState(null);
       const [showEditor, setShowEditor] = useState(false);
       const [saving, setSaving] = useState(false);
 
       const handleDelete = async (sopId) => {
         if (confirm('Delete this SOP? This cannot be undone.')) {
-          await onSopDelete(sopId);
+          try { await onSopDelete(sopId); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
         }
       };
 
@@ -3375,10 +3287,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           } else {
             await onSopCreate(sopData);
           }
-        } finally {
-          setSaving(false);
           setShowEditor(false);
           setEditingSop(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
+        } finally {
+          setSaving(false);
         }
       };
 
@@ -3446,7 +3360,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleDelete = async (taskId) => {
         if (confirm('Delete this task? This cannot be undone.')) {
-          await onTaskDelete(taskId);
+          try { await onTaskDelete(taskId); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
         }
       };
 
@@ -3458,10 +3373,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           } else {
             await onTaskCreate(taskData);
           }
-        } finally {
-          setSaving(false);
           setShowEditor(false);
           setEditingTask(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
+        } finally {
+          setSaving(false);
         }
       };
 
@@ -3530,7 +3447,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleDelete = async (articleId) => {
         if (confirm('Delete this article? This cannot be undone.')) {
-          await onArticleDelete(articleId);
+          try { await onArticleDelete(articleId); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
         }
       };
 
@@ -3542,10 +3460,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           } else {
             await onArticleCreate(articleData);
           }
-        } finally {
-          setSaving(false);
           setShowEditor(false);
           setEditingArticle(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
+        } finally {
+          setSaving(false);
         }
       };
 
@@ -3767,18 +3687,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleDelete = async (id) => {
         if (confirm('Delete this term?')) {
-          await onTermDelete(id);
+          try { await onTermDelete(id); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
         }
       };
 
       const handleSave = async (termData) => {
-        if (editingTerm) {
-          await onTermUpdate(editingTerm.id, termData);
-        } else {
-          await onTermCreate(termData);
+        try {
+          if (editingTerm) {
+            await onTermUpdate(editingTerm.id, termData);
+          } else {
+            await onTermCreate(termData);
+          }
+          setShowForm(false);
+          setEditingTerm(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
         }
-        setShowForm(false);
-        setEditingTerm(null);
       };
 
       if (showForm || editingTerm) {
@@ -3915,18 +3840,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleDelete = async (id) => {
         if (confirm('Delete this contact?')) {
-          await onContactDelete(id);
+          try { await onContactDelete(id); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
         }
       };
 
       const handleSave = async (contactData) => {
-        if (editingContact) {
-          await onContactUpdate(editingContact.id, contactData);
-        } else {
-          await onContactCreate(contactData);
+        try {
+          if (editingContact) {
+            await onContactUpdate(editingContact.id, contactData);
+          } else {
+            await onContactCreate(contactData);
+          }
+          setShowForm(false);
+          setEditingContact(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
         }
-        setShowForm(false);
-        setEditingContact(null);
       };
 
       if (showForm || editingContact) {
@@ -3982,18 +3912,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
       const handleDelete = async (id) => {
         if (confirm('Delete this pricing entity and all its markup ranges?')) {
-          await onEntityDelete(id);
+          try { await onEntityDelete(id); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
         }
       };
 
       const handleSave = async (entityData) => {
-        if (editingEntity) {
-          await onEntityUpdate(editingEntity.id, entityData);
-        } else {
-          await onEntityCreate(entityData);
+        try {
+          if (editingEntity) {
+            await onEntityUpdate(editingEntity.id, entityData);
+          } else {
+            await onEntityCreate(entityData);
+          }
+          setShowForm(false);
+          setEditingEntity(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
         }
-        setShowForm(false);
-        setEditingEntity(null);
       };
 
       if (showForm || editingEntity) {

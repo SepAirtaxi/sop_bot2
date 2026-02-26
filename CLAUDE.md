@@ -7,9 +7,8 @@ Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance co
 - **Single-file app**: Everything lives in `index.html` (~4200 lines)
 - **React 18 + Tailwind CSS** via CDN — no build step, no bundler
 - **Babel standalone** for JSX transpilation in-browser
-- **Firebase Firestore** for persistent data (live config in `CONFIG.firebase`)
+- **Firebase Firestore** as sole data store (live config in `CONFIG.firebase`)
 - **Firebase Authentication** (email + password) — admin creates accounts in Firebase Console
-- **LocalStorage** as fallback data store
 - **Vercel** for hosting + serverless functions
 - **Gemini 2.5 Flash** via `/api/chat.js` serverless proxy
 - **marked.js** for Markdown rendering in chat
@@ -37,9 +36,9 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 |-----------------|---------|
 | 1–88 | HTML head, CSS styles, animations, glossary tooltip styles |
 | 99–137 | CONFIG + Firebase initialization (Firestore + Auth) |
-| 132–241 | `FirestoreService` — generic CRUD + collection-specific helpers |
-| 242–297 | `LocalStorage` — fallback store for all collections |
-| 298–395 | Helpers: `timeAgo()`, formatters, `processContentLinks()`, `processGlossaryTerms()` |
+| 132–244 | `FirestoreService` — generic CRUD + collection-specific helpers |
+| 246–262 | Legacy localStorage cleanup (one-time key removal) |
+| 264–395 | Helpers: `timeAgo()`, formatters, `processContentLinks()`, `processGlossaryTerms()` |
 | 396–770 | `DEFAULT_SOPS` — hardcoded SOP content (Markdown strings, with `sopNumber`) |
 | 723–944 | `DEFAULT_DAILY_TASKS` (with `dtNumber`), `DEFAULT_CATEGORIES` data |
 | 945–1006 | `INITIAL_GLOSSARY` data (versioned with `GLOSSARY_VERSION`) |
@@ -76,10 +75,10 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - `handleNavigate(page, target?)` supports deep-linking with optional `{ type, number }` target for cross-link navigation
 
 ### Data Flow
-1. `App` component loads data on mount: tries Firestore first, falls back to LocalStorage, then falls back to hardcoded defaults
-2. On first Firestore load with empty collections, it seeds from defaults
-3. Migration runs on load: any SOPs/DailyTasks/KB articles missing auto-numbers get assigned (max+1, alphabetical)
-4. All CRUD operations go through `App`'s handler functions, which update both Firestore and local state
+1. `App` component loads all data from Firestore on mount (parallel `Promise.all`); no localStorage fallback
+2. On first Firestore load with empty collections, it seeds from hardcoded defaults
+3. Migration runs on load: any SOPs/DailyTasks/KB articles missing auto-numbers get assigned (max+1, alphabetical) and persisted to Firestore
+4. All CRUD operations go through `App`'s handler functions: Firestore write succeeds first, then React state updates; if Firestore fails, state is untouched and error propagates to the admin UI
 5. Data is passed down as props to page components
 
 ### Authentication
@@ -150,7 +149,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - `vercel --prod` for production deploy
 - SPA rewrites configured in `vercel.json`
 
-## Current Status (updated 2026-02-25)
+## Current Status (updated 2026-02-26)
 ### Completed
 - Full app shell with sidebar navigation (8 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
@@ -161,12 +160,12 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Contacts page
 - Pricing page
 - Admin panel with tabs for all content types (SOPs, Daily Tasks, KB, Glossary, Contacts, Pricing)
-- Firebase Firestore integration with auto-seeding
-- LocalStorage fallback
+- Firebase Firestore as sole data store (localStorage fallback removed 2026-02-26)
 - Firebase Authentication (email + password, admin-managed accounts, persistent sessions)
 - Auto-numbering for SOPs (SOP-001), Daily Tasks (DT-001), and KB articles (KB-001)
 - Cross-linking system: `[[SOP-001]]` / `[[DT-001]]` / `[[KB-001]]` syntax in Markdown with click-to-navigate
 - Glossary auto-highlight: glossary terms in SOP/DT/KB content automatically show blue with hover tooltips
+- Robust error handling: CRUD failures propagate to admin UI with alert messages
 
 ### Planned / Not Yet Started
 - Firestore security rules (restrict read/write to authenticated users)
