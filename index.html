@@ -93,10 +93,11 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 
   <script type="text/babel">
     const { useState, useRef, useEffect, useCallback, useMemo } = React;
@@ -245,20 +246,13 @@
       async savePricingEntity(data) { return this.add('pricing', data); },
       async updatePricingEntity(id, data) { return this.update('pricing', id, data); },
       async deletePricingEntity(id) { return this.remove('pricing', id); },
+
+      // -- Part Locations-specific --
+      async getPartLocations() { return this.getAll('partLocations'); },
+      async savePartLocation(data) { return this.add('partLocations', data); },
+      async updatePartLocation(id, data) { return this.update('partLocations', id, data); },
+      async deletePartLocation(id) { return this.remove('partLocations', id); },
     };
-
-    // ============================================================
-    // LOCAL STORAGE CLEANUP (one-time: remove legacy keys)
-    // ============================================================
-
-    (() => {
-      const legacyKeys = [
-        'sop_bot_sops', 'sop_bot_glossary', 'sop_bot_contacts',
-        'sop_bot_daily_tasks', 'sop_bot_knowledge_base', 'sop_bot_pricing',
-        'sop_bot_categories'
-      ];
-      legacyKeys.forEach(key => localStorage.removeItem(key));
-    })();
 
     // ============================================================
     // HELPER: RELATIVE TIME
@@ -364,6 +358,92 @@
 
       return processed.join('');
     };
+
+    // ============================================================
+    // SHARED UI HELPERS
+    // ============================================================
+
+    // Parse Markdown to HTML with sanitization (shared by chat, wizard, and content viewers)
+    const renderMarkdown = (md) => {
+      try { return DOMPurify.sanitize(marked.parse(md)); }
+      catch { return md; }
+    };
+
+    // Render Markdown content with cross-links and glossary highlights
+    const renderRichContent = (content, glossary, onClickHandler) => {
+      try {
+        const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
+        return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={onClickHandler} />;
+      } catch {
+        return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
+      }
+    };
+
+    // Cross-link click handler factory for content pages (SOP, DT, KB)
+    const createCrossLinkHandler = (ownType, findByNumber, selectItem, onCrossLink) => {
+      return (e) => {
+        const link = e.target.closest('[data-crosslink-type]');
+        if (link) {
+          e.preventDefault();
+          const type = link.getAttribute('data-crosslink-type');
+          const number = parseInt(link.getAttribute('data-crosslink-number'));
+          if (type === ownType) {
+            const target = findByNumber(number);
+            if (target) selectItem(target);
+          } else if (onCrossLink) {
+            onCrossLink(type, number);
+          }
+        }
+      };
+    };
+
+    // Expand/Collapse toggle button (shared by SOP, DT, KB, and Ask CAT pages)
+    function ExpandToggleButton({ isExpanded, onToggle }) {
+      return (
+        <button
+          onClick={onToggle}
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+        >
+          {isExpanded ? (
+            <React.Fragment>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
+              Collapse view
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+              Expand view
+            </React.Fragment>
+          )}
+        </button>
+      );
+    }
+
+    // Reusable SVG icon components for common actions
+    function SearchIcon({ className = "w-4 h-4" }) {
+      return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>;
+    }
+    function EditIcon({ className = "w-4 h-4" }) {
+      return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>;
+    }
+    function DeleteIcon({ className = "w-4 h-4" }) {
+      return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
+    }
+    function CloseIcon({ className = "w-5 h-5" }) {
+      return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>;
+    }
+    function EmptyStateIcon({ className = "w-10 h-10" }) {
+      return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+    }
+
+    // Hook: close modal on Escape key
+    function useEscapeKey(onClose) {
+      useEffect(() => {
+        const handler = (e) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+      }, [onClose]);
+    }
 
     // ============================================================
     // DEFAULT SOP DATA
@@ -1080,6 +1160,284 @@ Review the returned parts and take the necessary action to return them to stock 
     ];
 
     // ============================================================
+    // DEFAULT PART LOCATIONS DATA
+    // ============================================================
+
+    const INITIAL_PART_LOCATIONS = [
+      { id: '1', category: 'Avionics, lamps', subcategory: 'Anticollision/strobe lights', locations: ['C24-C-1'] },
+      { id: '2', category: 'Avionics, lamps', subcategory: 'Beam lamps', locations: ['C24-B'] },
+      { id: '3', category: 'Avionics, lamps', subcategory: 'Bulbs and Lamps', locations: ['C24-C-1', 'C24-C-2', 'C24-C-3', 'C24-C-5', 'C24-C-6', 'C24-B'] },
+      { id: '4', category: 'Avionics, lamps', subcategory: 'Lenses', locations: ['C24-C-4'] },
+      { id: '5', category: 'Avionics', subcategory: 'Alternator', locations: ['C21-A', 'C21-B'] },
+      { id: '6', category: 'Avionics', subcategory: 'Antennas', locations: ['C3-C-2'] },
+      { id: '7', category: 'Avionics', subcategory: 'Batteries', locations: ['C3-F', 'C4-E'] },
+      { id: '8', category: 'Avionics', subcategory: 'Brushes', locations: ['C3-A-3'] },
+      { id: '9', category: 'Avionics', subcategory: 'Butt Splices', locations: ['C3-B-3'] },
+      { id: '10', category: 'Avionics', subcategory: 'Circuit breakers', locations: ['C3-C-4'] },
+      { id: '11', category: 'Avionics', subcategory: 'Connectors', locations: ['C4-B-5'] },
+      { id: '12', category: 'Avionics', subcategory: 'Diodes', locations: ['C3-A-1'] },
+      { id: '13', category: 'Avionics', subcategory: 'Encoders', locations: ['C3-B'] },
+      { id: '14', category: 'Avionics', subcategory: 'Fuses', locations: ['C3-A-2'] },
+      { id: '15', category: 'Avionics', subcategory: 'Insert/Extract Tools', locations: ['C4-B-6'] },
+      { id: '16', category: 'Avionics', subcategory: 'Mixed Avionics', locations: ['C3-C-3', 'C4-C-6', 'C3-B-1', 'C3-B-2'] },
+      { id: '17', category: 'Avionics', subcategory: 'Probes', locations: ['C3-A-4'] },
+      { id: '18', category: 'Avionics', subcategory: 'Relays', locations: ['C3-C-1'] },
+      { id: '19', category: 'Avionics', subcategory: 'Screws', locations: ['C19-C-6'] },
+      { id: '20', category: 'Avionics', subcategory: 'Small instruments', locations: ['C3-A-5'] },
+      { id: '21', category: 'Avionics', subcategory: 'Solder sleeves', locations: ['C3-B-3'] },
+      { id: '22', category: 'Avionics', subcategory: 'Starter', locations: ['C21-C', 'C21-D'] },
+      { id: '23', category: 'Avionics', subcategory: 'Statick wicks', locations: ['C3-A-4'] },
+      { id: '24', category: 'Avionics', subcategory: 'Switches', locations: ['C3-C-5'] },
+      { id: '25', category: 'Avionics', subcategory: 'Terminals', locations: ['C4-B-4'] },
+      { id: '26', category: 'Avionics', subcategory: 'Transponders', locations: ['C3-B'] },
+      { id: '27', category: 'Avionics', subcategory: 'Wire', locations: ['C3-F'] },
+      { id: '28', category: 'Britten-Norman', subcategory: 'NB parts, big', locations: ['C6-A', 'C6-B'] },
+      { id: '29', category: 'Britten-Norman', subcategory: 'Pipes', locations: ['C6-E'] },
+      { id: '30', category: 'Britten-Norman', subcategory: 'Tubes', locations: ['C6-E'] },
+      { id: '31', category: 'Britten-Norman', subcategory: 'NB parts, small', locations: ['C6-C-1', 'C6-C-2', 'C6-C-3', 'C6-C-4', 'C6-C-5', 'C6-C-6'] },
+      { id: '32', category: 'Cessna', subcategory: 'Cessna parts', locations: ['C17-D-1', 'C17-D-2'] },
+      { id: '33', category: 'Engine Misc.', subcategory: 'Drain valve, flush mount', locations: ['C23-B-1'] },
+      { id: '34', category: 'Engine Misc.', subcategory: 'Gasket, spark plugs', locations: ['C22-B'] },
+      { id: '35', category: 'Engine Misc.', subcategory: 'Ignition harness', locations: ['C22-B'] },
+      { id: '36', category: 'Engine Misc.', subcategory: 'Oilfilters', locations: ['C22-C', 'C22-A'] },
+      { id: '37', category: 'Engine Misc.', subcategory: 'Spark plugs', locations: ['C22-B'] },
+      { id: '38', category: 'Exhaust', subcategory: 'Clamps', locations: ['C6-D-1'] },
+      { id: '39', category: 'Exhaust', subcategory: 'Gaskets', locations: ['C6-D-6'] },
+      { id: '40', category: 'Exhaust', subcategory: 'Heat exchangers', locations: ['C6-D', 'C7-D'] },
+      { id: '41', category: 'Exhaust', subcategory: 'Mufflers', locations: ['C6-D', 'C7-D'] },
+      { id: '42', category: 'Exhaust', subcategory: 'Pipes, big', locations: ['C7-D'] },
+      { id: '43', category: 'Exhaust', subcategory: 'Pipes, small', locations: ['C6-D-1'] },
+      { id: '44', category: 'Exhaust', subcategory: 'Stack assy', locations: ['C7-D'] },
+      { id: '45', category: 'Filters', subcategory: 'Air filter', locations: ['C23-C-4', 'C23-C-6', 'C23-E'] },
+      { id: '46', category: 'Filters', subcategory: 'Alternator filters', locations: ['C23-D-1'] },
+      { id: '47', category: 'Filters', subcategory: 'Fuel filters', locations: ['C23-D-1'] },
+      { id: '48', category: 'Filters', subcategory: 'Induction air filters BA-162E', locations: ['C23-D-5'] },
+      { id: '49', category: 'Filters', subcategory: 'Induction air filters BA-3', locations: ['C23-E'] },
+      { id: '50', category: 'Filters', subcategory: 'Induction air filters BA6108', locations: ['C23-D-4'] },
+      { id: '51', category: 'Filters', subcategory: 'Inlet air filters', locations: ['C23-C-5'] },
+      { id: '52', category: 'Filters', subcategory: 'Oilfilters', locations: ['C22-C', 'C22-A'] },
+      { id: '53', category: 'Filters', subcategory: 'Pneumatic filters', locations: ['C23-D'] },
+      { id: '54', category: 'Filters', subcategory: 'Socata filters N72', locations: ['C13-D-2'] },
+      { id: '55', category: 'Fittings', subcategory: 'AN Fittings', locations: ['C18-E-1', 'C18-E-2', 'C18-E-3'] },
+      { id: '56', category: 'Fittings', subcategory: 'AS Fittings', locations: ['C18-D-2'] },
+      { id: '57', category: 'Fittings', subcategory: 'Mixed Fittings', locations: ['C18-D-1'] },
+      { id: '58', category: 'Fittings', subcategory: 'MS Fittings', locations: ['C18-D-2'] },
+      { id: '59', category: 'Goodrich, deicing', subcategory: '2E', locations: ['C11-C-1'] },
+      { id: '60', category: 'Goodrich, deicing', subcategory: '3E', locations: ['C11-C-2'] },
+      { id: '61', category: 'Goodrich, deicing', subcategory: '4E', locations: ['C11-C-2'] },
+      { id: '62', category: 'Goodrich, deicing', subcategory: 'Activator chemical', locations: ['C11-C-3'] },
+      { id: '63', category: 'Goodrich, deicing', subcategory: 'Big goodrich parts', locations: ['C11-C'] },
+      { id: '64', category: 'Goodrich, deicing', subcategory: 'De-ice brushes', locations: ['C11-C-2'] },
+      { id: '65', category: 'Hardware', subcategory: 'AN Mixed', locations: ['C19-E-4'] },
+      { id: '66', category: 'Hardware', subcategory: 'Mixed', locations: ['C18-D-1', 'C18-D-2', 'C19-D-4'] },
+      { id: '67', category: 'Hardware', subcategory: 'MS Mixed', locations: ['C19-B-6'] },
+      { id: '68', category: 'Hardware', subcategory: 'NAS Mixed', locations: ['C19-E-1'] },
+      { id: '69', category: 'Hardware', subcategory: 'STD Mixed', locations: ['C20-D-1'] },
+      { id: '70', category: 'Hardware', subcategory: 'KP Bearings', locations: ['C23-B-2'] },
+      { id: '71', category: 'Hardware', subcategory: 'MS Mixed', locations: ['C20-B-1'] },
+      { id: '72', category: 'Hardware', subcategory: 'RB Rod ends', locations: ['C23-B-2'] },
+      { id: '73', category: 'Hardware', subcategory: 'SP Mixed', locations: ['C20-B-2'] },
+      { id: '74', category: 'Hardware, anchor nuts', subcategory: 'MS Anchornuts', locations: ['C19-B-1'] },
+      { id: '75', category: 'Hardware, bolts', subcategory: 'A Bolts', locations: ['C18-D-6'] },
+      { id: '76', category: 'Hardware, bolts', subcategory: 'A102 Bolts', locations: ['C18-D-5'] },
+      { id: '77', category: 'Hardware, bolts', subcategory: 'A111 - A113 Bolts', locations: ['C18-D-4'] },
+      { id: '78', category: 'Hardware, bolts', subcategory: 'AN23 Bolts', locations: ['C19-F-6'] },
+      { id: '79', category: 'Hardware, bolts', subcategory: 'AN24 Bolts', locations: ['C19-F-6'] },
+      { id: '80', category: 'Hardware, bolts', subcategory: 'AN3 Bolts', locations: ['C19-F-1', 'C19-F-2'] },
+      { id: '81', category: 'Hardware, bolts', subcategory: 'AN4 Bolts', locations: ['C19-F-3', 'C19-F-4'] },
+      { id: '82', category: 'Hardware, bolts', subcategory: 'AN5 Bolts', locations: ['C19-F-5'] },
+      { id: '83', category: 'Hardware, bolts', subcategory: 'AN6 Bolts', locations: ['C19-F-6'] },
+      { id: '84', category: 'Hardware, bolts', subcategory: 'AN7 Bolts', locations: ['C19-F-6'] },
+      { id: '85', category: 'Hardware, bolts', subcategory: 'Mixed Bolts', locations: ['C19-D-3'] },
+      { id: '86', category: 'Hardware, bolts', subcategory: 'MS bolts', locations: ['C19-B-3'] },
+      { id: '87', category: 'Hardware, bolts', subcategory: 'NAS Bolts', locations: ['C19-E-2'] },
+      { id: '88', category: 'Hardware, clamps', subcategory: 'Mixed clamps', locations: ['C18-F-2'] },
+      { id: '89', category: 'Hardware, clamps', subcategory: 'Mixed clamps', locations: ['C18-F-3', 'C18-F-4', 'C18-F'] },
+      { id: '90', category: 'Hardware, clips', subcategory: 'Mixed clips', locations: ['C18-F-1'] },
+      { id: '91', category: 'Hardware, cotter pins', subcategory: 'Mixed cotter pins', locations: ['C20-D-3'] },
+      { id: '92', category: 'Hardware, cotter pins', subcategory: 'MS Cotter pins', locations: ['C19-B-2'] },
+      { id: '93', category: 'Hardware, dome plugs', subcategory: 'Dome plugs', locations: ['C20-C-2'] },
+      { id: '94', category: 'Hardware, fastners', subcategory: 'Fasteners, camloc and receptacle', locations: ['C19-D-5'] },
+      { id: '95', category: 'Hardware, grease nipples', subcategory: 'Mixed Grease nipples', locations: ['C19-D-1'] },
+      { id: '96', category: 'Hardware, grease nipples', subcategory: 'MS Grease nipples', locations: ['C20-B-1'] },
+      { id: '97', category: 'Hardware, grease nipples', subcategory: 'Socata Grease nipples', locations: ['C13-D-2'] },
+      { id: '98', category: 'Hardware, grease nipples', subcategory: 'SP Grease nipple', locations: ['C20-B-2'] },
+      { id: '99', category: 'Hardware, grommets', subcategory: 'MS Grommets', locations: ['C20-C-1'] },
+      { id: '100', category: 'Hardware, grommets', subcategory: 'SP Grommets', locations: ['C20-C-1'] },
+      { id: '101', category: 'Hardware, nuts', subcategory: 'A nuts', locations: ['C18-D-3'] },
+      { id: '102', category: 'Hardware, nuts', subcategory: 'AN Nuts', locations: ['C19-E-6'] },
+      { id: '103', category: 'Hardware, nuts', subcategory: 'Mixed Nuts', locations: ['C19-D-3'] },
+      { id: '104', category: 'Hardware, nuts', subcategory: 'MS nuts', locations: ['C19-B-4', 'C19-B-5'] },
+      { id: '105', category: 'Hardware, nuts', subcategory: 'STD Nuts', locations: ['C20-D-1'] },
+      { id: '106', category: 'Hardware, pins', subcategory: 'Mixed Pins', locations: ['C20-D-3'] },
+      { id: '107', category: 'Hardware, pins', subcategory: 'SP pins', locations: ['C20-B-2'] },
+      { id: '108', category: 'Hardware, rivets', subcategory: 'Mixed Rivets', locations: ['C20-D-2'] },
+      { id: '109', category: 'Hardware, screws', subcategory: 'A Screws', locations: ['C18-D-6'] },
+      { id: '110', category: 'Hardware, screws', subcategory: 'AN Screws', locations: ['C19-E-3'] },
+      { id: '111', category: 'Hardware, screws', subcategory: 'AN Screws', locations: ['C19-E-4'] },
+      { id: '112', category: 'Hardware, screws', subcategory: 'Avionic Screws', locations: ['C19-C-6'] },
+      { id: '113', category: 'Hardware, screws', subcategory: 'MS Screws', locations: ['C19-C-1', 'C19-C-2', 'C19-C-3', 'C19-C-5'] },
+      { id: '114', category: 'Hardware, screws', subcategory: 'RX Screws', locations: ['C19-D-6'] },
+      { id: '115', category: 'Hardware, screws', subcategory: 'STD Screw', locations: ['C20-D-1'] },
+      { id: '116', category: 'Hardwarew, washers', subcategory: 'A Washers', locations: ['C18-D-6'] },
+      { id: '117', category: 'Hardwarew, washers', subcategory: 'AN Washers', locations: ['C19-E-5'] },
+      { id: '118', category: 'Hardwarew, washers', subcategory: 'Mixed Washers', locations: ['C19-D-3'] },
+      { id: '119', category: 'Hardwarew, washers', subcategory: 'MS Washers', locations: ['C19-C-4'] },
+      { id: '120', category: 'Hardwarew, washers', subcategory: 'Nas Washers', locations: ['C19-E-1'] },
+      { id: '121', category: 'Hardwarew, washers', subcategory: 'SP washers', locations: ['C20-B-2'] },
+      { id: '122', category: 'Hardwarew, washers', subcategory: 'STD Washer', locations: ['C20-D-1'] },
+      { id: '123', category: 'Hoses', subcategory: '303 hoses', locations: ['C7-E-1'] },
+      { id: '124', category: 'Hoses', subcategory: '306 hoses', locations: ['C7-E-2'] },
+      { id: '125', category: 'Hoses', subcategory: 'Firesleeves - Mixed', locations: ['C9-E'] },
+      { id: '126', category: 'Hoses', subcategory: 'Mixed hoses', locations: ['C7-E-3'] },
+      { id: '127', category: 'Hoses', subcategory: 'P68 hoses', locations: ['C16-E'] },
+      { id: '128', category: 'Hoses', subcategory: 'Robinson hoses', locations: ['C9-B'] },
+      { id: '129', category: 'King Air', subcategory: 'Bolts', locations: ['C9-C-2'] },
+      { id: '130', category: 'King Air', subcategory: 'Gaskets', locations: ['C9-C-1'] },
+      { id: '131', category: 'King Air', subcategory: 'Mixed King Air', locations: ['C9-C-4'] },
+      { id: '132', category: 'King Air', subcategory: 'Nuts', locations: ['C9-C-2'] },
+      { id: '133', category: 'King Air', subcategory: 'O-Rings', locations: ['C9-C-5'] },
+      { id: '134', category: 'King Air', subcategory: 'Screws', locations: ['C9-C-2'] },
+      { id: '135', category: 'King Air', subcategory: 'Washers', locations: ['C9-C-2'] },
+      { id: '136', category: 'Landing gear', subcategory: '15x6.00-6 tubes', locations: ['C5-C-1'] },
+      { id: '137', category: 'Landing gear', subcategory: '5.00-5 tubes', locations: ['C5-C-1'] },
+      { id: '138', category: 'Landing gear', subcategory: '6.00-6 tubes', locations: ['C5-C-2'] },
+      { id: '139', category: 'Landing gear', subcategory: '7.00-6 tubes', locations: ['C5-C-3'] },
+      { id: '140', category: 'Landing gear', subcategory: '7.00/8.00-6 tubes', locations: ['C5-C-3'] },
+      { id: '141', category: 'Landing gear', subcategory: '8.00-6 tubes', locations: ['C5-C-3'] },
+      { id: '142', category: 'Landing gear', subcategory: 'AIR - Britten-Norman landing gear parts', locations: ['C5-B-6'] },
+      { id: '143', category: 'Landing gear', subcategory: 'Brake discs', locations: ['C24-E', 'C24-D'] },
+      { id: '144', category: 'Landing gear', subcategory: 'Brake linings', locations: ['C24-D-1', 'C24-D-2', 'C24-D-3'] },
+      { id: '145', category: 'Landing gear', subcategory: 'Landing gear parts', locations: ['C5-B-1', 'C5-B-2'] },
+      { id: '146', category: 'Landing gear', subcategory: 'Shims', locations: ['C24-D-1'] },
+      { id: '147', category: 'Landing gear', subcategory: 'Tires', locations: ['C5-D'] },
+      { id: '148', category: 'Landing gear', subcategory: 'Wheel assy', locations: ['C5-A'] },
+      { id: '149', category: 'Landing gear', subcategory: 'Wheel bearings', locations: ['C5-B-3'] },
+      { id: '150', category: 'Lines', subcategory: 'Mixed lines', locations: ['C7-E-3'] },
+      { id: '151', category: 'Lycoming', subcategory: 'Actuators', locations: ['C4-C'] },
+      { id: '152', category: 'Lycoming', subcategory: 'Carburetors', locations: ['C4-C'] },
+      { id: '153', category: 'Lycoming', subcategory: 'Cylinders', locations: ['C4-A'] },
+      { id: '154', category: 'Lycoming', subcategory: 'Engine mounts', locations: ['C4-C-2'] },
+      { id: '155', category: 'Lycoming', subcategory: 'Gaskets', locations: ['C4-C-4'] },
+      { id: '156', category: 'Lycoming', subcategory: 'Gaskets - cylinder', locations: ['C4-C-3'] },
+      { id: '157', category: 'Lycoming', subcategory: 'Governor', locations: ['C4-C'] },
+      { id: '158', category: 'Lycoming', subcategory: 'Injector - fuel', locations: ['C4-C'] },
+      { id: '159', category: 'Lycoming', subcategory: 'LW Mixed - Lycoming eng. parts', locations: ['C4-C-1'] },
+      { id: '160', category: 'Lycoming', subcategory: 'Magnetos', locations: ['C4-D'] },
+      { id: '161', category: 'Lycoming', subcategory: 'Magnetos - spare parts', locations: ['C4-E'] },
+      { id: '162', category: 'Lycoming', subcategory: 'Mixed lycoming engine parts', locations: ['C4-C-2'] },
+      { id: '163', category: 'Lycoming', subcategory: 'Propeller hubs', locations: ['C4-E'] },
+      { id: '164', category: 'Lycoming', subcategory: 'Ring gears', locations: ['C4-A'] },
+      { id: '165', category: 'Lycoming', subcategory: 'SL Mixed - Lycoming eng. parts', locations: ['C4-C-1'] },
+      { id: '166', category: 'Miscellaneous', subcategory: 'Adapters for headset', locations: ['C15-D'] },
+      { id: '167', category: 'Miscellaneous', subcategory: 'Baffling material', locations: ['C11-E'] },
+      { id: '168', category: 'Miscellaneous', subcategory: 'Carbon monoxide detectors', locations: ['C23-C-1'] },
+      { id: '169', category: 'Miscellaneous', subcategory: 'Compas deveation decal', locations: ['C23-C-1'] },
+      { id: '170', category: 'Miscellaneous', subcategory: 'Fairing seal', locations: ['C11-D', 'C14-D'] },
+      { id: '171', category: 'Miscellaneous', subcategory: 'Fire extinguisher', locations: ['C10-C'] },
+      { id: '172', category: 'Miscellaneous', subcategory: 'First aid kit niveau 1', locations: ['C15-C-3'] },
+      { id: '173', category: 'Miscellaneous', subcategory: 'First aid kit niveau 2', locations: ['C15-C-1', 'C15-C-2'] },
+      { id: '174', category: 'Miscellaneous', subcategory: 'First aid kit niveau 3', locations: ['C15-C-3'] },
+      { id: '175', category: 'Miscellaneous', subcategory: 'First aid kit niveau 4', locations: ['C15-C-3'] },
+      { id: '176', category: 'Miscellaneous', subcategory: 'Flashlights - Handheld', locations: ['C15-D-1'] },
+      { id: '177', category: 'Miscellaneous', subcategory: 'Fuel drain cups', locations: ['C10-C'] },
+      { id: '178', category: 'Miscellaneous', subcategory: 'Gust lock', locations: ['C10-C'] },
+      { id: '179', category: 'Miscellaneous', subcategory: 'Hyd/Fuel sample kits', locations: ['C22-D-2'] },
+      { id: '180', category: 'Miscellaneous', subcategory: 'Life vest', locations: ['C10-B'] },
+      { id: '181', category: 'Miscellaneous', subcategory: 'Log books', locations: ['C15-D-2'] },
+      { id: '182', category: 'Miscellaneous', subcategory: 'Mikrofonbeskytter - Microphone protector', locations: ['C15-D'] },
+      { id: '183', category: 'Miscellaneous', subcategory: 'Oils sample kits', locations: ['C22-D-1'] },
+      { id: '184', category: 'Miscellaneous', subcategory: 'Pitot cover', locations: ['C10-D'] },
+      { id: '185', category: 'Miscellaneous', subcategory: 'Seat belts', locations: ['C8-B'] },
+      { id: '186', category: 'Miscellaneous', subcategory: 'Silicone material', locations: ['C11-E'] },
+      { id: '187', category: 'Miscellaneous', subcategory: 'Wheel chocks', locations: ['C10-D'] },
+      { id: '188', category: 'O-Rings', subcategory: 'AN O-Rings', locations: ['C18-B-1'] },
+      { id: '189', category: 'O-Rings', subcategory: 'AS O-Rings', locations: ['C18-C-4'] },
+      { id: '190', category: 'O-Rings', subcategory: 'M O-Rings', locations: ['C18-B-4'] },
+      { id: '191', category: 'O-Rings', subcategory: 'Mixed O-Rings', locations: ['C18-B-2', 'C18-B-3'] },
+      { id: '192', category: 'O-Rings', subcategory: 'MS O-Rings', locations: ['C18-B-3', 'C18-C-1', 'C18-C-2'] },
+      { id: '193', category: 'O-Rings', subcategory: 'NAS O-Rings', locations: ['C18-C-6'] },
+      { id: '194', category: 'O-Rings', subcategory: 'SA O-Rings', locations: ['C18-C-5'] },
+      { id: '195', category: 'Partenavia P.68', subcategory: 'Big P68 parts', locations: ['C16-A', 'C16-B'] },
+      { id: '196', category: 'Partenavia P.68', subcategory: 'Hoses', locations: ['C16-E'] },
+      { id: '197', category: 'Partenavia P.68', subcategory: 'Mixed P68 parts', locations: ['C16-D-5'] },
+      { id: '198', category: 'Partenavia P.68', subcategory: 'P/N 1.', locations: ['C16-C-1'] },
+      { id: '199', category: 'Partenavia P.68', subcategory: 'P/N 2.', locations: ['C16-C-2'] },
+      { id: '200', category: 'Partenavia P.68', subcategory: 'P/N 3.', locations: ['C16-C-3'] },
+      { id: '201', category: 'Partenavia P.68', subcategory: 'P/N 4.', locations: ['C16-C-4'] },
+      { id: '202', category: 'Partenavia P.68', subcategory: 'P/N 5.', locations: ['C16-C-5'] },
+      { id: '203', category: 'Partenavia P.68', subcategory: 'P/N 6.', locations: ['C16-D-1'] },
+      { id: '204', category: 'Partenavia P.68', subcategory: 'P/N 7.', locations: ['C16-D-2', 'C16-D-3', 'C16-D-4'] },
+      { id: '205', category: 'PC-12', subcategory: 'Big PC-12 parts', locations: ['C7-A', 'C7-B'] },
+      { id: '206', category: 'PC-12', subcategory: 'Bolt', locations: ['C7-C-4'] },
+      { id: '207', category: 'PC-12', subcategory: 'Filters', locations: ['C7-C-2'] },
+      { id: '208', category: 'PC-12', subcategory: 'Mixed PC-12', locations: ['C7-C-3'] },
+      { id: '209', category: 'PC-12', subcategory: 'Nuts', locations: ['C7-C-4'] },
+      { id: '210', category: 'PC-12', subcategory: 'O-Rings', locations: ['C7-C-1'] },
+      { id: '211', category: 'PC-12', subcategory: 'Packings', locations: ['C7-C-1'] },
+      { id: '212', category: 'PC-12', subcategory: 'Screws', locations: ['C7-C-4'] },
+      { id: '213', category: 'PC-12', subcategory: 'Seals', locations: ['C7-C-1'] },
+      { id: '214', category: 'PC-12', subcategory: 'Washers', locations: ['C7-C-4'] },
+      { id: '215', category: 'Piper', subcategory: 'Piper parts', locations: ['C17-C-1', 'C17-C-3', 'C17-C-4'] },
+      { id: '216', category: 'Placards/Decals', subcategory: 'Placards/decals', locations: ['C11-D-1'] },
+      { id: '217', category: 'PT-6 engine', subcategory: 'Big PT-6 parts', locations: ['C11-A', 'C-11-B'] },
+      { id: '218', category: 'PT-6 engine', subcategory: 'Bolts', locations: ['C11-B-2'] },
+      { id: '219', category: 'PT-6 engine', subcategory: 'Filters', locations: ['C11-B-3'] },
+      { id: '220', category: 'PT-6 engine', subcategory: 'O-Rings', locations: ['C11-B-1'] },
+      { id: '221', category: 'Pumps', subcategory: 'Fuel pumps', locations: ['C17-B'] },
+      { id: '222', category: 'Pumps', subcategory: 'Vacuum dry air pumps (RAP)', locations: ['C17-B'] },
+      { id: '223', category: 'Robinson', subcategory: 'Avionics', locations: ['C9-D-5'] },
+      { id: '224', category: 'Robinson', subcategory: 'Bearing - Jurnals', locations: ['C9-D-2'] },
+      { id: '225', category: 'Robinson', subcategory: 'Big Robinson parts', locations: ['C8-D'] },
+      { id: '226', category: 'Robinson', subcategory: 'Bolts', locations: ['C9-D-2'] },
+      { id: '227', category: 'Robinson', subcategory: 'Collective foam grib', locations: ['C9-D-4'] },
+      { id: '228', category: 'Robinson', subcategory: 'Counter weights', locations: ['C9-D-2'] },
+      { id: '229', category: 'Robinson', subcategory: 'Gaskets', locations: ['C9-D-4'] },
+      { id: '230', category: 'Robinson', subcategory: 'Hinge assy', locations: ['C9-D-1'] },
+      { id: '231', category: 'Robinson', subcategory: 'Hoses', locations: ['C9-B'] },
+      { id: '232', category: 'Robinson', subcategory: 'O-Rings', locations: ['C9-D-1'] },
+      { id: '233', category: 'Robinson', subcategory: 'Palnut', locations: ['C9-D-3'] },
+      { id: '234', category: 'Robinson', subcategory: 'Panels', locations: ['C9-D-5'] },
+      { id: '235', category: 'Robinson', subcategory: 'Retainers', locations: ['C9-D-1'] },
+      { id: '236', category: 'Robinson', subcategory: 'Rod ends', locations: ['C9-D-1'] },
+      { id: '237', category: 'Robinson', subcategory: 'Seals', locations: ['C9-D-1'] },
+      { id: '238', category: 'Robinson', subcategory: 'Shims', locations: ['C9-D-1'] },
+      { id: '239', category: 'Robinson', subcategory: 'Washers', locations: ['C9-D-3'] },
+      { id: '240', category: 'Socata', subcategory: 'Big parts', locations: ['C14-A', 'C14-B', 'C14-C', 'C14-D', 'C14-E'] },
+      { id: '241', category: 'Socata', subcategory: 'N40 - N49', locations: ['C13-E-6'] },
+      { id: '242', category: 'Socata', subcategory: 'N50', locations: ['C13-B-1'] },
+      { id: '243', category: 'Socata', subcategory: 'N51', locations: ['C13-B-2', 'C13-B-3', 'C13-B-4'] },
+      { id: '244', category: 'Socata', subcategory: 'N52', locations: ['C13-B-5'] },
+      { id: '245', category: 'Socata', subcategory: 'N53', locations: ['C13-B-5'] },
+      { id: '246', category: 'Socata', subcategory: 'N54', locations: ['C13-B-6', 'C13-C-1'] },
+      { id: '247', category: 'Socata', subcategory: 'N55', locations: ['C13-C-1'] },
+      { id: '248', category: 'Socata', subcategory: 'N56', locations: ['C13-C-1'] },
+      { id: '249', category: 'Socata', subcategory: 'N57', locations: ['C13-C-2', 'C13-C-3'] },
+      { id: '250', category: 'Socata', subcategory: 'N58 - N59', locations: ['C13-C-3'] },
+      { id: '251', category: 'Socata', subcategory: 'N60 - N61', locations: ['C13-C-4'] },
+      { id: '252', category: 'Socata', subcategory: 'N62 - N64', locations: ['C13-C-5'] },
+      { id: '253', category: 'Socata', subcategory: 'N65 - N69', locations: ['C13-C-6'] },
+      { id: '254', category: 'Socata', subcategory: 'N70', locations: ['C13-D-1'] },
+      { id: '255', category: 'Socata', subcategory: 'N71', locations: ['C13-D-1'] },
+      { id: '256', category: 'Socata', subcategory: 'N72 - N73', locations: ['C13-D-2'] },
+      { id: '257', category: 'Socata', subcategory: 'N74 - N75', locations: ['C13-D-3'] },
+      { id: '258', category: 'Socata', subcategory: 'N76 - N77', locations: ['C13-D-4'] },
+      { id: '259', category: 'Socata', subcategory: 'N78 - N79', locations: ['C13-D-5'] },
+      { id: '260', category: 'Socata', subcategory: 'TB09 Mixed', locations: ['C12-D-1'] },
+      { id: '261', category: 'Socata', subcategory: 'TB10 Bolts', locations: ['C12-B-5'] },
+      { id: '262', category: 'Socata', subcategory: 'TB10 Hinge', locations: ['C12-B-1'] },
+      { id: '263', category: 'Socata', subcategory: 'TB10 Mixed', locations: ['C12-B-2', 'C12-B-4', 'C12-B-6'] },
+      { id: '264', category: 'Socata', subcategory: 'TB10 Nuts', locations: ['C12-B-6'] },
+      { id: '265', category: 'Socata', subcategory: 'TB10 Pin', locations: ['C12-B-3'] },
+      { id: '266', category: 'Socata', subcategory: 'TB10 Reinfort', locations: ['C12-B-3'] },
+      { id: '267', category: 'Socata', subcategory: 'TB10 Ring', locations: ['C12-B-1'] },
+      { id: '268', category: 'Socata', subcategory: 'TB10 Spacer', locations: ['C12-B-3'] },
+      { id: '269', category: 'Socata', subcategory: 'TB10 Spring', locations: ['C12-B-3'] },
+      { id: '270', category: 'Socata', subcategory: 'TB20 Mixed', locations: ['C12-B-1', 'C12-B-2', 'C12-B-3'] },
+      { id: '271', category: 'Socata', subcategory: 'TB30 Mixed', locations: ['C12-D-2'] },
+    ];
+
+    // ============================================================
     // GEMINI AI SERVICE (via serverless function)
     // ============================================================
 
@@ -1243,6 +1601,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       { id: 'daily-tasks', label: 'Daily Tasks', icon: 'checklist' },
       { id: 'glossary', label: 'Glossary', icon: 'book' },
       { id: 'knowledge-base', label: 'Knowledge Base', icon: 'lightbulb' },
+      { id: 'part-locations', label: 'Part Locations', icon: 'warehouse' },
       { id: 'pricing', label: 'Pricing', icon: 'pricing' },
       { id: 'sop-archive', label: 'SOP Archive', icon: 'document' },
     ];
@@ -1259,6 +1618,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         people: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
         checklist: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
         lightbulb: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
+        warehouse: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21V8l9-5 9 5v13M3 21h18M7 21v-6h4v6M13 21v-6h4v6M3 8h18M7 12h2M15 12h2" /></svg>,
         pricing: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>,
         admin: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
         logout: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
@@ -1280,6 +1640,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [dailyTasks, setDailyTasks] = useState([]);
       const [knowledgeBase, setKnowledgeBase] = useState([]);
       const [pricing, setPricing] = useState([]);
+      const [partLocations, setPartLocations] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
       const [dataError, setDataError] = useState(null);
 
@@ -1302,13 +1663,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           }
 
           try {
-            let [loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing] = await Promise.all([
+            let [loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing, loadedPartLocations] = await Promise.all([
               FirestoreService.getSOPs(),
               FirestoreService.getGlossary(),
               FirestoreService.getContacts(),
               FirestoreService.getDailyTasks(),
               FirestoreService.getKnowledgeBase(),
               FirestoreService.getPricing(),
+              FirestoreService.getPartLocations(),
             ]);
 
             // Seed defaults if collections are empty (first-time setup)
@@ -1327,6 +1689,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             if (loadedDailyTasks.length === 0) {
               await FirestoreService.seedCollection('dailyTasks', DEFAULT_DAILY_TASKS);
               loadedDailyTasks = DEFAULT_DAILY_TASKS;
+            }
+            if (loadedPartLocations.length === 0) {
+              await FirestoreService.seedCollection('partLocations', INITIAL_PART_LOCATIONS);
+              loadedPartLocations = INITIAL_PART_LOCATIONS;
             }
             // Knowledge Base and Pricing start empty — no seeding needed
 
@@ -1369,6 +1735,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             setDailyTasks(loadedDailyTasks);
             setKnowledgeBase(loadedKnowledgeBase);
             setPricing(loadedPricing);
+            setPartLocations(loadedPartLocations);
             setCategories(DEFAULT_CATEGORIES);
           } catch (error) {
             console.error('Failed to load data from Firestore:', error);
@@ -1385,10 +1752,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       };
 
       // -- SOP handlers (Firestore-only) --
-      const handleSopsUpdate = (newSops) => {
-        setSops(newSops);
-      };
-
       const handleSopCreate = async (sopData) => {
         const now = new Date().toISOString();
         const maxNumber = sops.reduce((max, s) => Math.max(max, s.sopNumber || 0), 0);
@@ -1413,10 +1776,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       };
 
       // -- Glossary handlers --
-      const handleGlossaryUpdate = (newGlossary) => {
-        setGlossary(newGlossary);
-      };
-
       const handleTermCreate = async (termData) => {
         const firestoreId = await FirestoreService.saveGlossaryEntry(termData);
         const updated = [...glossary, { ...termData, id: firestoreId }].sort((a, b) => a.name.localeCompare(b.name));
@@ -1435,10 +1794,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       };
 
       // -- Contact handlers --
-      const handleContactsUpdate = (newContacts) => {
-        setContacts(newContacts);
-      };
-
       const handleContactCreate = async (contactData) => {
         const firestoreId = await FirestoreService.saveContact(contactData);
         const updated = [...contacts, { ...contactData, id: firestoreId }].sort((a, b) => a.name.localeCompare(b.name));
@@ -1457,10 +1812,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       };
 
       // -- Daily Tasks handlers --
-      const handleDailyTasksUpdate = (newTasks) => {
-        setDailyTasks(newTasks);
-      };
-
       const handleDailyTaskCreate = async (taskData) => {
         const now = new Date().toISOString();
         const maxDtNumber = dailyTasks.reduce((max, t) => Math.max(max, t.dtNumber || 0), 0);
@@ -1484,10 +1835,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       };
 
       // -- Knowledge Base handlers --
-      const handleKBUpdate = (newArticles) => {
-        setKnowledgeBase(newArticles);
-      };
-
       const handleKBCreate = async (articleData) => {
         const now = new Date().toISOString();
         const maxKbNumber = knowledgeBase.reduce((max, a) => Math.max(max, a.kbNumber || 0), 0);
@@ -1511,10 +1858,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       };
 
       // -- Pricing handlers --
-      const handlePricingUpdate = (newPricing) => {
-        setPricing(newPricing);
-      };
-
       const handlePricingEntityCreate = async (entityData) => {
         const now = new Date().toISOString();
         const firestoreId = await FirestoreService.savePricingEntity(entityData);
@@ -1533,6 +1876,31 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const handlePricingEntityDelete = async (id) => {
         await FirestoreService.deletePricingEntity(id);
         setPricing(prev => prev.filter(p => p.id !== id));
+      };
+
+      // -- Part Locations handlers --
+      const handlePartLocationCreate = async (data) => {
+        const now = new Date().toISOString();
+        const firestoreId = await FirestoreService.savePartLocation(data);
+        const newEntry = { ...data, id: firestoreId, createdAt: now, updatedAt: now };
+        const updated = [...partLocations, newEntry].sort((a, b) =>
+          a.category.localeCompare(b.category) || a.subcategory.localeCompare(b.subcategory)
+        );
+        setPartLocations(updated);
+        return firestoreId;
+      };
+
+      const handlePartLocationUpdate = async (id, data) => {
+        const now = new Date().toISOString();
+        await FirestoreService.updatePartLocation(id, data);
+        const updated = partLocations.map(p => p.id === id ? { ...p, ...data, updatedAt: now } : p)
+          .sort((a, b) => a.category.localeCompare(b.category) || a.subcategory.localeCompare(b.subcategory));
+        setPartLocations(updated);
+      };
+
+      const handlePartLocationDelete = async (id) => {
+        await FirestoreService.deletePartLocation(id);
+        setPartLocations(prev => prev.filter(p => p.id !== id));
       };
 
       if (authLoading || isLoading) {
@@ -1559,32 +1927,30 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           dailyTasks={dailyTasks}
           knowledgeBase={knowledgeBase}
           pricing={pricing}
+          partLocations={partLocations}
           dataError={dataError}
           onDismissError={() => setDataError(null)}
-          onSopsUpdate={handleSopsUpdate}
           onSopCreate={handleSopCreate}
           onSopUpdate={handleSopUpdate}
           onSopDelete={handleSopDelete}
-          onGlossaryUpdate={handleGlossaryUpdate}
           onTermCreate={handleTermCreate}
           onTermUpdate={handleTermUpdate}
           onTermDelete={handleTermDelete}
-          onContactsUpdate={handleContactsUpdate}
           onContactCreate={handleContactCreate}
           onContactUpdate={handleContactUpdate}
           onContactDelete={handleContactDelete}
-          onDailyTasksUpdate={handleDailyTasksUpdate}
           onDailyTaskCreate={handleDailyTaskCreate}
           onDailyTaskUpdate={handleDailyTaskUpdate}
           onDailyTaskDelete={handleDailyTaskDelete}
-          onKBUpdate={handleKBUpdate}
           onKBCreate={handleKBCreate}
           onKBArticleUpdate={handleKBArticleUpdate}
           onKBDelete={handleKBDelete}
-          onPricingUpdate={handlePricingUpdate}
           onPricingEntityCreate={handlePricingEntityCreate}
           onPricingEntityUpdate={handlePricingEntityUpdate}
           onPricingEntityDelete={handlePricingEntityDelete}
+          onPartLocationCreate={handlePartLocationCreate}
+          onPartLocationUpdate={handlePartLocationUpdate}
+          onPartLocationDelete={handlePartLocationDelete}
           onLogout={handleLogout}
         />
       );
@@ -1660,14 +2026,15 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function AppShell(props) {
-      const { currentUser, sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
+      const { currentUser, sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing, partLocations,
         dataError, onDismissError,
-        onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
-        onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
-        onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
-        onDailyTasksUpdate, onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
-        onKBUpdate, onKBCreate, onKBArticleUpdate, onKBDelete,
-        onPricingUpdate, onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
+        onSopCreate, onSopUpdate, onSopDelete,
+        onTermCreate, onTermUpdate, onTermDelete,
+        onContactCreate, onContactUpdate, onContactDelete,
+        onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
+        onKBCreate, onKBArticleUpdate, onKBDelete,
+        onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
+        onPartLocationCreate, onPartLocationUpdate, onPartLocationDelete,
         onLogout } = props;
       const [currentPage, setCurrentPage] = useState('ask-cat');
       const [deepLinkTarget, setDeepLinkTarget] = useState(null);
@@ -1697,6 +2064,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             return <GlossaryPage glossary={glossary} />;
           case 'contacts':
             return <ContactsPage contacts={contacts} />;
+          case 'part-locations':
+            return <PartLocationsPage partLocations={partLocations} />;
           case 'pricing':
             return <PricingPage pricing={pricing} />;
           case 'admin':
@@ -1709,15 +2078,13 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 dailyTasks={dailyTasks}
                 knowledgeBase={knowledgeBase}
                 pricing={pricing}
-                onSopsUpdate={onSopsUpdate}
+                partLocations={partLocations}
                 onSopCreate={onSopCreate}
                 onSopUpdate={onSopUpdate}
                 onSopDelete={onSopDelete}
-                onGlossaryUpdate={onGlossaryUpdate}
                 onTermCreate={onTermCreate}
                 onTermUpdate={onTermUpdate}
                 onTermDelete={onTermDelete}
-                onContactsUpdate={onContactsUpdate}
                 onContactCreate={onContactCreate}
                 onContactUpdate={onContactUpdate}
                 onContactDelete={onContactDelete}
@@ -1730,6 +2097,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onPricingEntityCreate={onPricingEntityCreate}
                 onPricingEntityUpdate={onPricingEntityUpdate}
                 onPricingEntityDelete={onPricingEntityDelete}
+                onPartLocationCreate={onPartLocationCreate}
+                onPartLocationUpdate={onPartLocationUpdate}
+                onPartLocationDelete={onPartLocationDelete}
               />
             );
           default:
@@ -1811,7 +2181,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   {dataError}
                 </div>
                 <button onClick={onDismissError} className="text-amber-600 hover:text-amber-800 p-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <CloseIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -1943,11 +2313,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         }
       };
 
-      const renderMarkdown = (md) => {
-        try { return marked.parse(md); }
-        catch { return md; }
-      };
-
       const renderMessageContent = (msg) => {
         let content = msg.content;
         const hasGuideOffer = content.includes('%%GUIDE_OFFER%%');
@@ -2002,22 +2367,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     Return to guide (step {guide.currentIndex + 1}/{guide.steps.length})
                   </button>
                 )}
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-                >
-                  {isExpanded ? (
-                    <React.Fragment>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
-                      Collapse view
-                    </React.Fragment>
-                  ) : (
-                    <React.Fragment>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-                      Expand view
-                    </React.Fragment>
-                  )}
-                </button>
+                <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
               </div>
             </div>
           </div>
@@ -2098,11 +2448,6 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const currentStep = !completed ? steps[currentIndex] : null;
       const isLastStep = currentIndex >= steps.length - 1;
 
-      const renderMarkdown = (md) => {
-        try { return marked.parse(md); }
-        catch { return md; }
-      };
-
       return (
         <div className="h-full flex flex-col bg-gray-50">
           {/* Wizard Header */}
@@ -2115,7 +2460,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 </p>
               </div>
               <button onClick={onExit} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-100 hover:text-white hover:bg-emerald-700 rounded-lg transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <CloseIcon className="w-4 h-4" />
                 Exit guide
               </button>
             </div>
@@ -2267,31 +2612,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           }
           onClearDeepLink();
         }
-      }, [deepLinkTarget]);
+      }, [deepLinkTarget, sops, onClearDeepLink]);
 
-      const handleContentClick = (e) => {
-        const link = e.target.closest('[data-crosslink-type]');
-        if (link) {
-          e.preventDefault();
-          const type = link.getAttribute('data-crosslink-type');
-          const number = parseInt(link.getAttribute('data-crosslink-number'));
-          if (type === 'SOP') {
-            const target = sops.find(s => s.sopNumber === number);
-            if (target) { setSelectedSopId(target.id); setActiveCategory('All'); setSearchQuery(''); }
-          } else if (onCrossLink) {
-            onCrossLink(type, number);
-          }
-        }
-      };
-
-      const renderSopContent = (content) => {
-        try {
-          const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
-          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
-        } catch {
-          return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
-        }
-      };
+      const handleContentClick = createCrossLinkHandler(
+        'SOP',
+        (number) => sops.find(s => s.sopNumber === number),
+        (target) => { setSelectedSopId(target.id); setActiveCategory('All'); setSearchQuery(''); },
+        onCrossLink
+      );
 
       // -- Guided Process --
       const startGuidedProcess = useCallback(async () => {
@@ -2380,7 +2708,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="flex-1 overflow-y-auto">
               {filteredSops.length === 0 ? (
                 <div className="p-6 text-center">
-                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <EmptyStateIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-400">No SOPs found</p>
                 </div>
               ) : (
@@ -2435,22 +2763,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <h1 className="text-2xl font-bold text-gray-900">{selectedSop.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-                    >
-                      {isExpanded ? (
-                        <React.Fragment>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
-                          Collapse view
-                        </React.Fragment>
-                      ) : (
-                        <React.Fragment>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-                          Expand view
-                        </React.Fragment>
-                      )}
-                    </button>
+                    <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
                     <button
                       onClick={startGuidedProcess}
                       disabled={guideLoading}
@@ -2483,14 +2796,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
                     <span>{guideError}</span>
                     <button onClick={() => setGuideError(null)} className="text-red-500 hover:text-red-700 p-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      <CloseIcon className="w-4 h-4" />
                     </button>
                   </div>
                 )}
 
                 {/* SOP Body */}
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
-                  {renderSopContent(selectedSop.content)}
+                  {renderRichContent(selectedSop.content, glossary, handleContentClick)}
                 </div>
 
               </div>
@@ -2534,31 +2847,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           }
           onClearDeepLink();
         }
-      }, [deepLinkTarget]);
+      }, [deepLinkTarget, dailyTasks, onClearDeepLink]);
 
-      const handleContentClick = (e) => {
-        const link = e.target.closest('[data-crosslink-type]');
-        if (link) {
-          e.preventDefault();
-          const type = link.getAttribute('data-crosslink-type');
-          const number = parseInt(link.getAttribute('data-crosslink-number'));
-          if (type === 'DT') {
-            const target = dailyTasks.find(t => t.dtNumber === number);
-            if (target) { setSelectedTaskId(target.id); setSearchQuery(''); }
-          } else if (onCrossLink) {
-            onCrossLink(type, number);
-          }
-        }
-      };
-
-      const renderContent = (content) => {
-        try {
-          const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
-          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
-        } catch {
-          return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
-        }
-      };
+      const handleContentClick = createCrossLinkHandler(
+        'DT',
+        (number) => dailyTasks.find(t => t.dtNumber === number),
+        (target) => { setSelectedTaskId(target.id); setSearchQuery(''); },
+        onCrossLink
+      );
 
       return (
         <div className="h-full flex">
@@ -2584,7 +2880,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="flex-1 overflow-y-auto">
               {filteredTasks.length === 0 ? (
                 <div className="p-6 text-center">
-                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <EmptyStateIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-400">No tasks found</p>
                 </div>
               ) : (
@@ -2637,22 +2933,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <h1 className="text-2xl font-bold text-gray-900">{selectedTask.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-                    >
-                      {isExpanded ? (
-                        <React.Fragment>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
-                          Collapse view
-                        </React.Fragment>
-                      ) : (
-                        <React.Fragment>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-                          Expand view
-                        </React.Fragment>
-                      )}
-                    </button>
+                    <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
                     <button
                       onClick={() => onNavigate('ask-cat')}
                       className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
@@ -2663,7 +2944,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
-                  {renderContent(selectedTask.content)}
+                  {renderRichContent(selectedTask.content, glossary, handleContentClick)}
                 </div>
               </div>
             )}
@@ -2715,31 +2996,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           }
           onClearDeepLink();
         }
-      }, [deepLinkTarget]);
+      }, [deepLinkTarget, knowledgeBase, onClearDeepLink]);
 
-      const handleContentClick = (e) => {
-        const link = e.target.closest('[data-crosslink-type]');
-        if (link) {
-          e.preventDefault();
-          const type = link.getAttribute('data-crosslink-type');
-          const number = parseInt(link.getAttribute('data-crosslink-number'));
-          if (type === 'KB') {
-            const target = knowledgeBase.find(a => a.kbNumber === number);
-            if (target) { setSelectedArticleId(target.id); setActiveCategory('All'); setSearchQuery(''); }
-          } else if (onCrossLink) {
-            onCrossLink(type, number);
-          }
-        }
-      };
-
-      const renderContent = (content) => {
-        try {
-          const html = processGlossaryTerms(processContentLinks(marked.parse(content)), glossary);
-          return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onClick={handleContentClick} />;
-        } catch {
-          return <div className="whitespace-pre-wrap text-gray-700">{content}</div>;
-        }
-      };
+      const handleContentClick = createCrossLinkHandler(
+        'KB',
+        (number) => knowledgeBase.find(a => a.kbNumber === number),
+        (target) => { setSelectedArticleId(target.id); setActiveCategory('All'); setSearchQuery(''); },
+        onCrossLink
+      );
 
       return (
         <div className="h-full flex">
@@ -2784,7 +3048,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="flex-1 overflow-y-auto">
               {filteredArticles.length === 0 ? (
                 <div className="p-6 text-center">
-                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <EmptyStateIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-400">{knowledgeBase.length === 0 ? 'No articles yet' : 'No articles found'}</p>
                 </div>
               ) : (
@@ -2837,22 +3101,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <h1 className="text-2xl font-bold text-gray-900">{selectedArticle.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="flex items-center gap-2 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-                    >
-                      {isExpanded ? (
-                        <React.Fragment>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
-                          Collapse view
-                        </React.Fragment>
-                      ) : (
-                        <React.Fragment>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-                          Expand view
-                        </React.Fragment>
-                      )}
-                    </button>
+                    <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
                     <button
                       onClick={() => onNavigate('ask-cat')}
                       className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
@@ -2863,7 +3112,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
-                  {renderContent(selectedArticle.content)}
+                  {renderRichContent(selectedArticle.content, glossary, handleContentClick)}
                 </div>
               </div>
             )}
@@ -2942,7 +3191,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             {/* Term Cards Grid */}
             {filteredTerms.length === 0 ? (
               <div className="text-center py-16">
-                <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <EmptyStateIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-400 text-sm">No terms found</p>
               </div>
             ) : (
@@ -3035,7 +3284,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         return list.slice().sort((a, b) => a.entityName.localeCompare(b.entityName));
       }, [pricing, searchQuery]);
 
-      const selectedEntity = pricing.find(e => e.id === selectedEntityId);
+      const selectedEntity = useMemo(() => pricing.find(e => e.id === selectedEntityId) || null, [pricing, selectedEntityId]);
 
       // Auto-select first entity if current selection is gone
       useEffect(() => {
@@ -3160,6 +3409,154 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     }
 
     // ============================================================
+    // PAGE: PART LOCATIONS
+    // ============================================================
+
+    function PartLocationsPage({ partLocations }) {
+      const [searchQuery, setSearchQuery] = useState('');
+      const [categoryFilter, setCategoryFilter] = useState('');
+      const [sortField, setSortField] = useState('category');
+      const [sortDir, setSortDir] = useState('asc');
+
+      const categories = useMemo(() => {
+        const cats = [...new Set(partLocations.map(p => p.category))];
+        return cats.sort((a, b) => a.localeCompare(b));
+      }, [partLocations]);
+
+      const filteredData = useMemo(() => {
+        let data = partLocations;
+        if (categoryFilter) {
+          data = data.filter(p => p.category === categoryFilter);
+        }
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          data = data.filter(p =>
+            p.category.toLowerCase().includes(q) ||
+            p.subcategory.toLowerCase().includes(q) ||
+            (p.locations || []).some(loc => loc.toLowerCase().includes(q))
+          );
+        }
+        data = [...data].sort((a, b) => {
+          let cmp = 0;
+          if (sortField === 'category') {
+            cmp = a.category.localeCompare(b.category) || a.subcategory.localeCompare(b.subcategory);
+          } else {
+            cmp = a.subcategory.localeCompare(b.subcategory) || a.category.localeCompare(b.category);
+          }
+          return sortDir === 'asc' ? cmp : -cmp;
+        });
+        return data;
+      }, [partLocations, searchQuery, categoryFilter, sortField, sortDir]);
+
+      const toggleSort = (field) => {
+        if (sortField === field) {
+          setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+          setSortField(field);
+          setSortDir('asc');
+        }
+      };
+
+      const SortIcon = ({ field }) => {
+        if (sortField !== field) return <svg className="w-3.5 h-3.5 text-gray-300 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>;
+        return sortDir === 'asc'
+          ? <svg className="w-3.5 h-3.5 text-blue-500 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+          : <svg className="w-3.5 h-3.5 text-blue-500 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>;
+      };
+
+      return (
+        <div className="h-full overflow-auto bg-gray-50">
+          <div className="max-w-6xl mx-auto px-8 py-8">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-800">Part Locations</h1>
+              <p className="text-gray-500 text-sm mt-1">Warehouse zone and shelf locations for parts and components</p>
+            </div>
+
+            {/* Filters */}
+            <div className="flex gap-3 mb-4">
+              <div className="relative flex-1 max-w-md">
+                <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search category, part type, or location code..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <div className="flex items-center text-xs text-gray-400 ml-auto">
+                {filteredData.length === partLocations.length
+                  ? `${partLocations.length} entries`
+                  : `${filteredData.length} of ${partLocations.length} entries`}
+              </div>
+            </div>
+
+            {/* Table */}
+            {filteredData.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 px-8 py-16 text-center">
+                <NavIcon name="warehouse" className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">
+                  {partLocations.length === 0
+                    ? 'No part locations yet. Add them via the Admin panel.'
+                    : 'No entries match your search.'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th
+                        className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3 cursor-pointer select-none hover:text-gray-700"
+                        onClick={() => toggleSort('category')}
+                      >
+                        Category <SortIcon field="category" />
+                      </th>
+                      <th
+                        className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3 cursor-pointer select-none hover:text-gray-700"
+                        onClick={() => toggleSort('subcategory')}
+                      >
+                        Sub-category <SortIcon field="subcategory" />
+                      </th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">
+                        Locations
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredData.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3 text-sm text-gray-600">{entry.category}</td>
+                        <td className="px-6 py-3 text-sm font-medium text-gray-800">{entry.subcategory}</td>
+                        <td className="px-6 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(entry.locations || []).map((loc, i) => (
+                              <span key={i} className="inline-flex px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-mono font-medium rounded">{loc}</span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // PAGE: ADMIN (Tabbed Interface)
     // ============================================================
 
@@ -3170,16 +3567,18 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       { id: 'glossary', label: 'Glossary' },
       { id: 'contacts', label: 'Contacts' },
       { id: 'pricing', label: 'Pricing' },
+      { id: 'partLocations', label: 'Part Locations' },
     ];
 
     function AdminPage(props) {
-      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing,
-        onSopsUpdate, onSopCreate, onSopUpdate, onSopDelete,
-        onGlossaryUpdate, onTermCreate, onTermUpdate, onTermDelete,
-        onContactsUpdate, onContactCreate, onContactUpdate, onContactDelete,
+      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing, partLocations,
+        onSopCreate, onSopUpdate, onSopDelete,
+        onTermCreate, onTermUpdate, onTermDelete,
+        onContactCreate, onContactUpdate, onContactDelete,
         onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
         onKBCreate, onKBArticleUpdate, onKBDelete,
-        onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete } = props;
+        onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
+        onPartLocationCreate, onPartLocationUpdate, onPartLocationDelete } = props;
       const [activeTab, setActiveTab] = useState('sops');
 
       return (
@@ -3188,7 +3587,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             {/* Header */}
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
-              <p className="text-gray-500 text-sm mt-1">Manage SOPs, daily tasks, knowledge base, glossary, contacts, and pricing</p>
+              <p className="text-gray-500 text-sm mt-1">Manage SOPs, daily tasks, knowledge base, glossary, contacts, pricing, and part locations</p>
             </div>
 
             {/* Tab Bar */}
@@ -3256,6 +3655,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onEntityCreate={onPricingEntityCreate}
                 onEntityUpdate={onPricingEntityUpdate}
                 onEntityDelete={onPricingEntityDelete}
+              />
+            )}
+            {activeTab === 'partLocations' && (
+              <AdminPartLocationsTab
+                partLocations={partLocations}
+                onEntryCreate={onPartLocationCreate}
+                onEntryUpdate={onPartLocationUpdate}
+                onEntryDelete={onPartLocationDelete}
               />
             )}
           </div>
@@ -3328,10 +3735,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEditingSop(sop)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <EditIcon />
                     </button>
                     <button onClick={() => handleDelete(sop.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <DeleteIcon />
                     </button>
                   </div>
                 </div>
@@ -3415,10 +3822,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEditingTask(task)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <EditIcon />
                     </button>
                     <button onClick={() => handleDelete(task.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <DeleteIcon />
                     </button>
                   </div>
                 </div>
@@ -3502,10 +3909,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEditingArticle(article)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <EditIcon />
                     </button>
                     <button onClick={() => handleDelete(article.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <DeleteIcon />
                     </button>
                   </div>
                 </div>
@@ -3739,10 +4146,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEditingTerm(term)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <EditIcon />
                     </button>
                     <button onClick={() => handleDelete(term.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <DeleteIcon />
                     </button>
                   </div>
                 </div>
@@ -3762,6 +4169,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function GlossaryFormModal({ term, categories, onSave, onClose }) {
+      useEscapeKey(onClose);
       const [name, setName] = useState(term?.name || '');
       const [type, setType] = useState(term?.type || 'abbreviation');
       const [meaning, setMeaning] = useState(term?.meaning || '');
@@ -3772,12 +4180,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const canSave = name.trim() && meaning.trim() && (category || customCategory.trim());
 
       return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-semibold">{term ? 'Edit Term' : 'Add Term'}</h2>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <CloseIcon />
               </button>
             </div>
             <div className="p-6 space-y-4">
@@ -3885,10 +4293,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEditingContact(contact)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <EditIcon />
                     </button>
                     <button onClick={() => handleDelete(contact.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <DeleteIcon />
                     </button>
                   </div>
                 </div>
@@ -3957,10 +4365,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEditingEntity(entity)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <EditIcon />
                     </button>
                     <button onClick={() => handleDelete(entity.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <DeleteIcon />
                     </button>
                   </div>
                 </div>
@@ -3975,10 +4383,230 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     }
 
     // ============================================================
+    // ADMIN TAB: PART LOCATIONS
+    // ============================================================
+
+    function AdminPartLocationsTab({ partLocations, onEntryCreate, onEntryUpdate, onEntryDelete }) {
+      const [editingEntry, setEditingEntry] = useState(null);
+      const [showForm, setShowForm] = useState(false);
+      const [searchQuery, setSearchQuery] = useState('');
+
+      const handleDelete = async (id) => {
+        if (confirm('Delete this part location entry?')) {
+          try { await onEntryDelete(id); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
+        }
+      };
+
+      const handleSave = async (data) => {
+        try {
+          if (editingEntry) {
+            await onEntryUpdate(editingEntry.id, data);
+          } else {
+            await onEntryCreate(data);
+          }
+          setShowForm(false);
+          setEditingEntry(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
+        }
+      };
+
+      if (showForm || editingEntry) {
+        return (
+          <PartLocationFormModal
+            entry={editingEntry}
+            existingCategories={[...new Set(partLocations.map(p => p.category))].sort()}
+            onSave={handleSave}
+            onClose={() => { setShowForm(false); setEditingEntry(null); }}
+          />
+        );
+      }
+
+      const filtered = searchQuery.trim()
+        ? partLocations.filter(p => {
+            const q = searchQuery.toLowerCase();
+            return p.category.toLowerCase().includes(q) ||
+              p.subcategory.toLowerCase().includes(q) ||
+              (p.locations || []).some(loc => loc.toLowerCase().includes(q));
+          })
+        : partLocations;
+
+      const sorted = [...filtered].sort((a, b) => a.category.localeCompare(b.category) || a.subcategory.localeCompare(b.subcategory));
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{partLocations.length} part location{partLocations.length !== 1 ? 's' : ''}</p>
+            <button onClick={() => setShowForm(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add Entry</button>
+          </div>
+          <div className="mb-3">
+            <div className="relative max-w-sm">
+              <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search entries..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {sorted.map((entry) => (
+                <div key={entry.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="min-w-0 flex-1 mr-4">
+                    <span className="font-medium text-gray-800 text-sm">{entry.category}</span>
+                    <span className="text-gray-400 mx-2">—</span>
+                    <span className="text-gray-600 text-sm">{entry.subcategory}</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(entry.locations || []).map((loc, i) => (
+                        <span key={i} className="inline-flex px-1.5 py-0.5 bg-slate-100 text-slate-600 text-xs font-mono rounded">{loc}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => setEditingEntry(entry)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <EditIcon />
+                    </button>
+                    <button onClick={() => handleDelete(entry.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <DeleteIcon />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {sorted.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">
+                  {partLocations.length === 0 ? 'No part locations yet. Add your first one.' : 'No entries match your search.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // MODAL: PART LOCATION FORM
+    // ============================================================
+
+    function PartLocationFormModal({ entry, existingCategories, onSave, onClose }) {
+      useEscapeKey(onClose);
+      const [category, setCategory] = useState(entry?.category || '');
+      const [subcategory, setSubcategory] = useState(entry?.subcategory || '');
+      const [locations, setLocations] = useState(entry?.locations?.length > 0 ? [...entry.locations] : ['']);
+
+      const addLocation = () => setLocations([...locations, '']);
+
+      const updateLocation = (index, value) => {
+        const updated = locations.map((loc, i) => i === index ? value : loc);
+        setLocations(updated);
+      };
+
+      const removeLocation = (index) => {
+        if (locations.length <= 1) return;
+        setLocations(locations.filter((_, i) => i !== index));
+      };
+
+      const handleSave = () => {
+        const cleanLocations = locations.map(l => l.trim()).filter(l => l.length > 0);
+        onSave({ category: category.trim(), subcategory: subcategory.trim(), locations: cleanLocations });
+      };
+
+      const canSave = category.trim().length > 0 && subcategory.trim().length > 0 && locations.some(l => l.trim().length > 0);
+
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-semibold">{entry ? 'Edit Part Location' : 'Add Part Location'}</h2>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="p-6 space-y-5 overflow-y-auto">
+              {/* Category with datalist autocomplete */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                <input
+                  type="text"
+                  list="part-loc-categories"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="e.g., Hardware, bolts"
+                />
+                <datalist id="part-loc-categories">
+                  {existingCategories.map(cat => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Subcategory */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Sub-category</label>
+                <input
+                  type="text"
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="e.g., AN3 Bolts"
+                />
+              </div>
+
+              {/* Dynamic Locations */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-medium text-gray-500">Locations</label>
+                  <button onClick={addLocation} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Add Location</button>
+                </div>
+                <div className="space-y-2">
+                  {locations.map((loc, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={loc}
+                        onChange={(e) => updateLocation(idx, e.target.value)}
+                        placeholder="e.g., C19-F-1"
+                        className="flex-1 px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      />
+                      {locations.length > 1 && (
+                        <button
+                          onClick={() => removeLocation(idx)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove location"
+                        >
+                          <CloseIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-3 flex-shrink-0">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+              >
+                {entry ? 'Save Changes' : 'Add Entry'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // MODAL: PRICING ENTITY FORM
     // ============================================================
 
     function PricingEntityFormModal({ entity, onSave, onClose }) {
+      useEscapeKey(onClose);
       const [entityName, setEntityName] = useState(entity?.entityName || '');
       const [ranges, setRanges] = useState(entity?.ranges || []);
 
@@ -4010,12 +4638,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const canSave = entityName.trim().length > 0;
 
       return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
               <h2 className="text-lg font-semibold">{entity ? 'Edit Pricing Entity' : 'Add Pricing Entity'}</h2>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <CloseIcon />
               </button>
             </div>
             <div className="p-6 space-y-5 overflow-y-auto">
@@ -4082,7 +4710,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Remove range"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          <CloseIcon className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
@@ -4110,6 +4738,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function ContactFormModal({ contact, onSave, onClose }) {
+      useEscapeKey(onClose);
       const [name, setName] = useState(contact?.name || '');
       const [role, setRole] = useState(contact?.role || '');
       const [phone, setPhone] = useState(contact?.phone || '');
@@ -4118,12 +4747,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const canSave = name.trim() && role.trim();
 
       return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-semibold">{contact ? 'Edit Contact' : 'Add Contact'}</h2>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <CloseIcon />
               </button>
             </div>
             <div className="p-6 space-y-4">

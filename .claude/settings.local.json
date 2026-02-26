@@ -3,7 +3,12 @@
     "allow": [
       "Bash(vercel --prod)",
       "Bash(npx vercel:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(python -c:*)",
+      "Bash(python3:*)",
+      "Bash(where:*)",
+      "Bash(\"/c/Users/sep.AIRCAT/AppData/Local/Programs/Python/Python312/python.exe\" -c:*)",
+      "Bash(node -e:*)"
     ]
   }
 }
