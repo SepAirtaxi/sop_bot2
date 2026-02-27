@@ -4,7 +4,7 @@
 Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance company). New hires use it to look up standard operating procedures, contacts, glossary terms, daily tasks, knowledge base articles, pricing info, and warehouse part locations. An AI chat ("Ask CAT") powered by Gemini answers questions based on SOP content.
 
 ## Tech Stack
-- **Single-file app**: Everything lives in `index.html` (~4990 lines)
+- **Single-file app**: Everything lives in `index.html` (~5065 lines)
 - **React 18 + Tailwind CSS** via CDN (production builds) — no build step, no bundler
 - **Babel standalone** for JSX transpilation in-browser
 - **Firebase Firestore** as sole data store (live config in `CONFIG.firebase`)
@@ -45,8 +45,9 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | 1152–1160 | `INITIAL_CONTACTS` data |
 | 1162–1435 | `INITIAL_PART_LOCATIONS` (271 entries with category, subcategory, locations array) |
 | 1440–1592 | `GeminiService` — builds system prompt, calls `/api/chat` |
-| 1594–1630 | `NAV_ITEMS` config + `NavIcon` SVG component |
-| 1632–1955 | `App` — root component (auth state + role loading, data loading, migration, CRUD handlers) |
+| 1594–1701 | `NAV_ITEMS` config + `NavIcon` SVG component |
+| 1703–1779 | `AiAvatar` — bot chat avatar with sparkle icon + cat easter egg (`AiSparkleIcon`, `CatFaceIcon`, `aiEasterEggScheduler`) |
+| 1781–2030 | `App` — root component (auth state + role loading, data loading, migration, CRUD handlers) |
 | 1959–2022 | `LoginScreen` |
 | 2024–2195 | `AppShell` — sidebar + content area, page routing, deep-link navigation |
 | 2197–2440 | `AskCATPage` — chat interface + inline wizard mode |
@@ -205,6 +206,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Animated expand/collapse (2026-02-27): left panel slides out via CSS width/opacity transition, content area expands via max-width transition — smooth `cubic-bezier` easing on all three pages + Ask CAT bubble widths
 - Sticky action bar (2026-02-27): title + buttons extracted into a `flex-shrink-0` header above the scroll container on SOP Archive, Daily Tasks, and Knowledge Base — buttons always visible regardless of scroll position; compact two-line left side (category pill + ID on row 1, title on row 2)
 - Ask CAT rich rendering (2026-02-27): chat bot responses now run through the full `processContentLinks` + `processGlossaryTerms` pipeline — `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` cross-links render as clickable chips that navigate to the target document, and glossary terms show blue hover tooltips; `onCrossLink` prop threaded from `AppShell` → `AskCATPage`
+- Ask CAT avatar + easter egg (2026-02-27): `NavIcon chat` replaced with AI sparkles icon (two 4-pointed stars); bot chat bubble avatar replaced with `AiAvatar` component showing `AiSparkleIcon`; a singleton `aiEasterEggScheduler` fires a `cat-easter-egg` CustomEvent every 1–3 minutes — all visible avatars simultaneously scaleX-flip to `CatFaceIcon` for ~3.5s then flip back
 - Ask CAT cross-link activation (2026-02-27): `GeminiService.buildSystemPrompt` now includes document numbers in headings passed to Gemini (e.g. `## Title [SOP-005] (Category: ...)`) and the system prompt explicitly instructs Gemini to use `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` notation — previously Gemini only wrote plain bold titles which the front-end pipeline ignored
 
 ### Planned / Not Yet Started
