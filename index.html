@@ -2218,27 +2218,33 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               })}
             </nav>
 
-            {/* Bottom Section: Admin + User + Logout */}
-            <div className="px-3 py-3 space-y-0.5" style={{borderTop: '1px solid rgba(255,255,255,0.07)'}}>
+            {/* Bottom Section: Admin + User/Logout */}
+            <div className="px-3 pb-3 pt-2 space-y-2" style={{borderTop: '1px solid rgba(255,255,255,0.07)'}}>
+
+              {/* Admin — outlined to feel system-level, not content nav */}
               <button
                 onClick={() => handleNavigate('admin')}
-                className={`sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium${currentPage === 'admin' ? ' sidebar-active' : ''}`}
+                className={`sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium${currentPage === 'admin' ? ' sidebar-active' : ''}`}
+                style={currentPage !== 'admin' ? {border: '1px solid rgba(255,255,255,0.13)'} : {}}
               >
-                <NavIcon name="admin" className="w-5 h-5 flex-shrink-0" />
-                Admin
+                <NavIcon name="admin" className="w-4 h-4 flex-shrink-0" />
+                Admin Panel
               </button>
+
+              {/* User identity + logout — unified strip */}
               {currentUser && (
-                <div className="px-3 py-2 text-xs truncate" style={{color: 'rgba(255,255,255,0.28)'}} title={currentUser.email}>
-                  {currentUser.email}
+                <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg" style={{background: 'rgba(255,255,255,0.06)'}}>
+                  <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{background: 'rgba(0,102,204,0.85)', color: '#fff'}}>
+                    {currentUser.email[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0 text-xs truncate" style={{color: 'rgba(255,255,255,0.5)'}}>
+                    {currentUser.email}
+                  </div>
+                  <button onClick={onLogout} title="Sign out" className="sidebar-logout-btn flex-shrink-0 p-1.5 rounded-md">
+                    <NavIcon name="logout" className="w-4 h-4" />
+                  </button>
                 </div>
               )}
-              <button
-                onClick={onLogout}
-                className="sidebar-logout-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
-              >
-                <NavIcon name="logout" className="w-5 h-5 flex-shrink-0" />
-                Logout
-              </button>
             </div>
           </aside>
 
