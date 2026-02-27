@@ -143,9 +143,17 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 
 ### Expand View Toggle
 - SOP Archive, Daily Tasks, Knowledge Base, and Ask CAT pages each have an `isExpanded` state
-- When expanded: the left list panel (`w-80`) is hidden via `{!isExpanded && ...}`, and the content wrapper drops its `max-w-5xl` constraint
-- Ask CAT: message bubbles widen from `max-w-[75%]` to `max-w-[90%]` when expanded
+- **Animated**: left panel collapses via CSS `width` transition (320px → 0) with simultaneous opacity fade; content area expands via `max-width` transition (`64rem` → `9999px`) — both use `cubic-bezier(0.4,0,0.2,1)` over 350ms
+- Left panel always rendered (never conditionally unmounted) so the animation plays; `overflow-hidden` on the panel clips content during collapse
+- Ask CAT: message bubbles transition `max-width` between `75%` and `90%` with the same easing
 - Shared `ExpandToggleButton` component renders the toggle, styled as a gray pill (`bg-gray-100`) with expand/collapse SVG icons
+
+### Sticky Content Header (SOP Archive, Daily Tasks, Knowledge Base)
+- When a document is selected, a compact sticky bar renders **above** the scrollable body — buttons stay visible at all times regardless of scroll position
+- Layout: left side = category pill + ID number (one row, small) + title (`text-base font-semibold`) below; right side = action buttons unchanged
+- Bar uses `flex-shrink-0` on the outer div and sits inside a `flex flex-col overflow-hidden` right-panel wrapper; scrollable body is a sibling `flex-1 overflow-y-auto` div
+- The inner max-width wrapper also carries the expand transition so title and buttons track the content width during animation
+- `min-w-0` on the title wrapper prevents long titles from pushing buttons off-screen
 
 ### Glossary Auto-Highlight
 - `processGlossaryTerms(html, glossaryItems)` scans rendered HTML in SOP/DT/KB viewers for glossary terms
@@ -163,7 +171,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - `vercel --prod` for production deploy
 - SPA rewrites configured in `vercel.json`
 
-## Current Status (updated 2026-02-26)
+## Current Status (updated 2026-02-27)
 ### Completed
 - Full app shell with sidebar navigation (9 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
@@ -181,9 +189,10 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Glossary auto-highlight: glossary terms in SOP/DT/KB content automatically show blue with hover tooltips
 - Robust error handling: CRUD failures propagate to admin UI with alert messages
 - Document IDs (SOP-001, DT-001, KB-001) styled bold + blue in secondary list menus for visibility
-- "Expand view" / "Collapse view" toggle on SOP, Daily Tasks, Knowledge Base, and Ask CAT pages — hides the left list panel and removes max-width constraint for full-width reading
 - Code health cleanup (2026-02-26): React production builds, DOMPurify HTML sanitization, shared UI components (icons, ExpandToggleButton, renderRichContent, createCrossLinkHandler), useEscapeKey hook + backdrop close on modals, fixed useEffect dependency arrays, removed dead code (unused handler functions, legacy localStorage cleanup)
 - Part Locations module (2026-02-26): searchable/sortable table page with category filter and location badges, admin CRUD tab with form modal (dynamic locations list, category autocomplete), 271 seed entries from Excel, Firestore `partLocations` collection
+- Animated expand/collapse (2026-02-27): left panel slides out via CSS width/opacity transition, content area expands via max-width transition — smooth `cubic-bezier` easing on all three pages + Ask CAT bubble widths
+- Sticky action bar (2026-02-27): title + buttons extracted into a `flex-shrink-0` header above the scroll container on SOP Archive, Daily Tasks, and Knowledge Base — buttons always visible regardless of scroll position; compact two-line left side (category pill + ID on row 1, title on row 2)
 
 ### Planned / Not Yet Started
 - Firestore security rules (restrict read/write to authenticated users)
