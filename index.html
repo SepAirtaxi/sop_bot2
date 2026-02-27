@@ -2181,7 +2181,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const renderPage = () => {
         switch (currentPage) {
           case 'ask-cat':
-            return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} />;
+            return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} onCrossLink={handleCrossLinkClick} />;
           case 'sop-archive':
             return <SOPArchivePage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'daily-tasks':
@@ -2197,7 +2197,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           case 'pricing':
             return <PricingPage pricing={pricing} />;
           case 'admin':
-            if (!isAdmin) return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} />;
+            if (!isAdmin) return <AskCATPage sops={sops} glossary={glossary} contacts={contacts} dailyTasks={dailyTasks} knowledgeBase={knowledgeBase} onCrossLink={handleCrossLinkClick} />;
             return (
               <AdminPage
                 sops={sops}
@@ -2325,7 +2325,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // PAGE: ASK CAT (Chat + Inline Wizard)
     // ============================================================
 
-    function AskCATPage({ sops, glossary, contacts, dailyTasks = [], knowledgeBase = [] }) {
+    function AskCATPage({ sops, glossary, contacts, dailyTasks = [], knowledgeBase = [], onCrossLink }) {
       const [messages, setMessages] = useState([
         { id: 'welcome', type: 'bot', content: 'Hello! I\'m CAT, your onboarding assistant. Ask me anything about procedures, daily tasks, terms, or contacts at Copenhagen AirTaxi A/S.' }
       ]);
@@ -2434,6 +2434,16 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         }
       }, [guide]);
 
+      const handleChatCrossLink = useCallback((e) => {
+        const link = e.target.closest('[data-crosslink-type]');
+        if (link && onCrossLink) {
+          e.preventDefault();
+          const type = link.getAttribute('data-crosslink-type');
+          const number = parseInt(link.getAttribute('data-crosslink-number'));
+          onCrossLink(type, number);
+        }
+      }, [onCrossLink]);
+
       const handleSubmit = (e) => {
         e.preventDefault();
         sendMessage(input);
@@ -2451,9 +2461,10 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         const hasGuideOffer = content.includes('%%GUIDE_OFFER%%');
         if (hasGuideOffer) content = content.replace('%%GUIDE_OFFER%%', '').trim();
 
+        const html = processGlossaryTerms(processContentLinks(renderMarkdown(content)), glossary);
         return (
           <React.Fragment>
-            <div className="prose text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} />
+            <div className="prose text-sm" dangerouslySetInnerHTML={{ __html: html }} onClick={handleChatCrossLink} />
             {hasGuideOffer && !guide && (
               <button
                 onClick={() => startGuide()}

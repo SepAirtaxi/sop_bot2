@@ -4,7 +4,7 @@
 Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance company). New hires use it to look up standard operating procedures, contacts, glossary terms, daily tasks, knowledge base articles, pricing info, and warehouse part locations. An AI chat ("Ask CAT") powered by Gemini answers questions based on SOP content.
 
 ## Tech Stack
-- **Single-file app**: Everything lives in `index.html` (~4890 lines)
+- **Single-file app**: Everything lives in `index.html` (~4990 lines)
 - **React 18 + Tailwind CSS** via CDN (production builds) — no build step, no bundler
 - **Babel standalone** for JSX transpilation in-browser
 - **Firebase Firestore** as sole data store (live config in `CONFIG.firebase`)
@@ -36,7 +36,7 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 |-----------------|---------|
 | 1–89 | HTML head, CSS styles, animations, glossary tooltip styles |
 | 100–135 | CONFIG + Firebase initialization (Firestore + Auth) |
-| 138–255 | `FirestoreService` — generic CRUD + collection-specific helpers (incl. partLocations) |
+| 138–330 | `FirestoreService` — generic CRUD + collection-specific helpers (incl. partLocations, users) |
 | 257–360 | Helpers: `timeAgo()`, formatters, `processContentLinks()`, `processGlossaryTerms()` |
 | 362–447 | Shared UI helpers: `renderMarkdown()`, `renderRichContent()`, `createCrossLinkHandler()`, `ExpandToggleButton`, icon components, `useEscapeKey` hook |
 | 448–868 | `DEFAULT_SOPS` — hardcoded SOP content (Markdown strings, with `sopNumber`) |
@@ -46,7 +46,7 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | 1162–1435 | `INITIAL_PART_LOCATIONS` (271 entries with category, subcategory, locations array) |
 | 1440–1592 | `GeminiService` — builds system prompt, calls `/api/chat` |
 | 1594–1630 | `NAV_ITEMS` config + `NavIcon` SVG component |
-| 1632–1955 | `App` — root component (auth state, data loading, migration, CRUD handlers) |
+| 1632–1955 | `App` — root component (auth state + role loading, data loading, migration, CRUD handlers) |
 | 1959–2022 | `LoginScreen` |
 | 2024–2195 | `AppShell` — sidebar + content area, page routing, deep-link navigation |
 | 2197–2440 | `AskCATPage` — chat interface + inline wizard mode |
@@ -58,7 +58,7 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | 3228–3272 | `ContactsPage` — contact cards |
 | 3274–3409 | `PricingPage` — pricing entity display |
 | 3411–3557 | `PartLocationsPage` — searchable/sortable table with location badges |
-| 3559–3670 | `AdminPage` — tabbed admin panel (7 tabs) |
+| 3559–3670 | `AdminPage` — tabbed admin panel (8 tabs) |
 | 3673–3753 | `AdminSOPsTab` |
 | 3755–3840 | `AdminDailyTasksTab` |
 | 3842–3927 | `AdminKnowledgeBaseTab` |
@@ -71,7 +71,8 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | 4490–4603 | `PartLocationFormModal` |
 | 4604–4734 | `PricingEntityFormModal` |
 | 4736–4793 | `ContactFormModal` |
-| 4795–4800 | ReactDOM render |
+| 4930–4995 | `AdminUsersTab` — users table (email, role badge, last login, first seen) |
+| 4997–5000 | ReactDOM render |
 
 ### Routing
 State-based via `currentPage` in `AppShell`. No URL router — just a switch on page ID:
@@ -85,13 +86,21 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 4. All CRUD operations go through `App`'s handler functions: Firestore write succeeds first, then React state updates; if Firestore fails, state is untouched and error propagates to the admin UI
 5. Data is passed down as props to page components
 
-### Authentication
+### Authentication & Roles
 - Firebase Authentication with email + password (`firebase.auth().signInWithEmailAndPassword()`)
 - No self-registration — admin creates users in Firebase Console (Authentication > Users)
-- `onAuthStateChanged` listener in `App` manages `currentUser` state + `authLoading`
+- `onAuthStateChanged` listener in `App` is async: calls `FirestoreService.upsertUser()` on login, sets `isAdmin` state from the returned role
 - Persistent login across tabs/refreshes (handled by Firebase SDK)
 - Login screen shows "Need access? Contact sep@aircat.dk"
 - Logged-in user's email displayed in sidebar above logout button
+
+### Role System
+- Two roles: `admin` and `user` — stored in `users` Firestore collection (doc ID = Firebase Auth UID)
+- `sep@aircat.dk` is hardcoded as admin on first login; all other users default to `user`
+- On every login, `upsertUser(uid, email)` creates the doc (if new) or updates `lastLogin` (if existing) — role is never overwritten after creation
+- `isAdmin` boolean prop flows from `App` → `AppShell` → page routing
+- Only difference: admins see the Admin Panel button in the sidebar and can access the admin page; non-admins are redirected to Ask CAT if they navigate to `/admin`
+- **Admin panel → Users tab**: lists all users who have logged in at least once (email, role badge, last login, first seen)
 
 ### AI Chat (`AskCATPage`)
 - Two modes: **Chat** (free-form Q&A) and **Wizard** (step-by-step guided process)
@@ -109,6 +118,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 | `knowledgeBase` | kbNumber, title, category, content (Markdown), timestamps |
 | `pricing` | entityName, ranges (array of {from, to, markup}), timestamps |
 | `partLocations` | category, subcategory, locations (array of code strings), timestamps |
+| `users` | email, role (`admin`/`user`), createdAt, lastLogin (doc ID = Firebase Auth UID) |
 
 ## Environment Variables
 | Variable | Where | Purpose |
@@ -173,6 +183,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 
 ## Current Status (updated 2026-02-27)
 ### Completed
+- Role-based access (2026-02-27): `users` Firestore collection, `upsertUser()` on login, `isAdmin` prop flow, Admin Panel gated behind admin role, Users tab in admin panel showing all logged-in accounts with role badge + timestamps; `sep@aircat.dk` hardcoded as sole admin on first login
 - Full app shell with sidebar navigation (9 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
 - SOP Archive with search and full viewer
@@ -196,7 +207,6 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 
 ### Planned / Not Yet Started
 - Firestore security rules (restrict read/write to authenticated users)
-- Role-based access (admin vs regular user)
 - Analytics dashboard
 - PDF export of step-by-step guides
 - Multi-language support (Danish/English)
