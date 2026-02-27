@@ -1512,9 +1512,10 @@ Review the returned parts and take the necessary action to return them to stock 
 
     const GeminiService = {
       buildSystemPrompt: (sops, glossary, contacts, mode, isStepMode = false, dailyTasks = [], knowledgeBase = []) => {
-        const sopSummaries = sops.map(sop =>
-          `## ${sop.title} (Category: ${sop.category})\n${sop.content}`
-        ).join('\n\n---\n\n');
+        const sopSummaries = sops.map(sop => {
+          const num = sop.sopNumber ? ` [${formatSopNumber(sop.sopNumber)}]` : '';
+          return `## ${sop.title}${num} (Category: ${sop.category})\n${sop.content}`;
+        }).join('\n\n---\n\n');
 
         const glossaryRef = glossary.map(t =>
           `- **${t.name}** (${t.type}): ${t.meaning}${t.context ? ' — ' + t.context : ''}`
@@ -1524,13 +1525,15 @@ Review the returned parts and take the necessary action to return them to stock 
           `- **${c.name}** — ${c.role}${c.phone ? ', Phone: ' + c.phone : ''}${c.email ? ', Email: ' + c.email : ''}`
         ).join('\n');
 
-        const dailyTasksRef = dailyTasks.length > 0 ? dailyTasks.map(dt =>
-          `## ${dt.title} (Category: ${dt.category})\n${dt.content}`
-        ).join('\n\n---\n\n') : '';
+        const dailyTasksRef = dailyTasks.length > 0 ? dailyTasks.map(dt => {
+          const num = dt.dtNumber ? ` [${formatDtNumber(dt.dtNumber)}]` : '';
+          return `## ${dt.title}${num} (Category: ${dt.category})\n${dt.content}`;
+        }).join('\n\n---\n\n') : '';
 
-        const kbRef = knowledgeBase.length > 0 ? knowledgeBase.map(kb =>
-          `## ${kb.title} (Category: ${kb.category})\n${kb.content}`
-        ).join('\n\n---\n\n') : '';
+        const kbRef = knowledgeBase.length > 0 ? knowledgeBase.map(kb => {
+          const num = kb.kbNumber ? ` [${formatKbNumber(kb.kbNumber)}]` : '';
+          return `## ${kb.title}${num} (Category: ${kb.category})\n${kb.content}`;
+        }).join('\n\n---\n\n') : '';
 
         if (isStepMode) {
           return `You are CAT, the onboarding assistant for Copenhagen AirTaxi A/S. Generate a COMPLETE step-by-step guide based on the SOPs provided.
@@ -1574,11 +1577,12 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
 RESPONSE RULES:
 
+CROSS-LINK NOTATION: When referencing any SOP, Daily Task, or Knowledge Base article, ALWAYS include its cross-link tag using the number shown in [brackets] in the document heading. Format: [[SOP-001]], [[DT-001]], [[KB-001]]. Example: "This is covered in the Goods Receiving SOP [[SOP-005]]." These tags render as clickable links for the user.
+
 1. PROCEDURAL QUESTIONS (how do I..., how to..., what's the process for..., steps to...):
    - Give a SHORT summary (2-4 sentences max) explaining what the procedure involves
-   - Name which SOP(s) or daily task(s) are relevant, e.g. "This is covered in the **Goods Receiving** SOP" or "See the **Monitor Part Requests** daily task"
-   - If multiple SOPs or daily tasks apply, briefly explain why
-   - Also check the Knowledge Base for relevant reference articles
+   - Reference the relevant SOP(s), daily task(s), and KB article(s) with their cross-link tags (e.g. [[SOP-005]], [[DT-003]], [[KB-002]])
+   - If multiple documents apply, briefly explain why
    - Do NOT include the full procedure steps or quote large sections
    - ALWAYS end your response with this exact tag on its own line:
    %%GUIDE_OFFER%%
@@ -1589,11 +1593,12 @@ RESPONSE RULES:
    - Use the contacts directory for "who handles X" questions
    - Use daily tasks for questions about recurring responsibilities and routines
    - Use the knowledge base for reference information and how-to articles
+   - If your answer relates to a specific SOP, daily task, or KB article, include its cross-link tag
    - Do NOT include %%GUIDE_OFFER%% for these
 
 3. FOLLOW-UP QUESTIONS (asked while a guide is open):
    - Answer the specific question concisely
-   - Reference the relevant step or SOP section
+   - Reference the relevant step or SOP section with its cross-link tag if applicable
    - Keep it focused — the guide panel handles the walkthrough
 
 CRITICAL RULES:

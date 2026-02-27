@@ -204,6 +204,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Part Locations module (2026-02-26): searchable/sortable table page with category filter and location badges, admin CRUD tab with form modal (dynamic locations list, category autocomplete), 271 seed entries from Excel, Firestore `partLocations` collection
 - Animated expand/collapse (2026-02-27): left panel slides out via CSS width/opacity transition, content area expands via max-width transition — smooth `cubic-bezier` easing on all three pages + Ask CAT bubble widths
 - Sticky action bar (2026-02-27): title + buttons extracted into a `flex-shrink-0` header above the scroll container on SOP Archive, Daily Tasks, and Knowledge Base — buttons always visible regardless of scroll position; compact two-line left side (category pill + ID on row 1, title on row 2)
+- Ask CAT rich rendering (2026-02-27): chat bot responses now run through the full `processContentLinks` + `processGlossaryTerms` pipeline — `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` cross-links render as clickable chips that navigate to the target document, and glossary terms show blue hover tooltips; `onCrossLink` prop threaded from `AppShell` → `AskCATPage`
 
 ### Planned / Not Yet Started
 - Firestore security rules (restrict read/write to authenticated users)
