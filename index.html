@@ -2381,7 +2381,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     <span className="text-white text-xs font-bold">C</span>
                   </div>
                 )}
-                <div className={`${isExpanded ? 'max-w-[90%]' : 'max-w-[75%]'} px-4 py-3 rounded-2xl ${
+                <div style={{ maxWidth: isExpanded ? '90%' : '75%', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }} className={`px-4 py-3 rounded-2xl ${
                   msg.type === 'user'
                     ? 'bg-blue-500 text-white rounded-br-md'
                     : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md'
@@ -2667,9 +2667,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       }
 
       return (
-        <div className="h-full flex">
+        <div className="h-full flex overflow-hidden">
           {/* Left Panel — SOP List */}
-          {!isExpanded && <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          <div className="flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden" style={{ width: isExpanded ? 0 : 320, opacity: isExpanded ? 0 : 1, transition: 'width 350ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease' }}>
             {/* Header & Search */}
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-3">SOP Archive</h2>
@@ -2739,28 +2739,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">{filteredSops.length} of {sops.length} SOPs</p>
             </div>
-          </div>}
+          </div>
 
           {/* Right Panel — SOP Content */}
-          <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
-            {!selectedSop ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
-                  <NavIcon name="document" className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-500 mb-1">Select an SOP to view</h3>
-                <p className="text-sm text-gray-400">Choose a procedure from the list to read its full content</p>
-              </div>
-            ) : (
-              <div className={`${isExpanded ? '' : 'max-w-5xl'} mx-auto px-8 py-8`}>
-                {/* SOP Header */}
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
-                      {selectedSop.category}
-                    </span>
-                    {selectedSop.sopNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatSopNumber(selectedSop.sopNumber)}</div>}
-                    <h1 className="text-2xl font-bold text-gray-900">{selectedSop.title}</h1>
+          <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+
+            {/* Sticky header: title + action buttons (only when an SOP is selected) */}
+            {selectedSop && (
+              <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
+                <div className="mx-auto px-8 py-3 flex items-center justify-between" style={{ maxWidth: isExpanded ? '9999px' : '64rem', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full flex-shrink-0">
+                        {selectedSop.category}
+                      </span>
+                      {selectedSop.sopNumber && <span className="text-xs font-mono font-semibold text-blue-400">{formatSopNumber(selectedSop.sopNumber)}</span>}
+                    </div>
+                    <h1 className="text-base font-semibold text-gray-900 leading-snug">{selectedSop.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
                     <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
@@ -2790,24 +2785,40 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     </button>
                   </div>
                 </div>
-
-                {/* Guide error */}
-                {guideError && (
-                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
-                    <span>{guideError}</span>
-                    <button onClick={() => setGuideError(null)} className="text-red-500 hover:text-red-700 p-1">
-                      <CloseIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                {/* SOP Body */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
-                  {renderRichContent(selectedSop.content, glossary, handleContentClick)}
-                </div>
-
               </div>
             )}
+
+            {/* Scrollable body */}
+            <div ref={contentRef} className="flex-1 overflow-y-auto">
+              {!selectedSop ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                    <NavIcon name="document" className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-500 mb-1">Select an SOP to view</h3>
+                  <p className="text-sm text-gray-400">Choose a procedure from the list to read its full content</p>
+                </div>
+              ) : (
+                <div className="mx-auto px-8 py-6" style={{ maxWidth: isExpanded ? '9999px' : '64rem', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+
+                  {/* Guide error */}
+                  {guideError && (
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
+                      <span>{guideError}</span>
+                      <button onClick={() => setGuideError(null)} className="text-red-500 hover:text-red-700 p-1">
+                        <CloseIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SOP Body */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
+                    {renderRichContent(selectedSop.content, glossary, handleContentClick)}
+                  </div>
+
+                </div>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -2857,9 +2868,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       );
 
       return (
-        <div className="h-full flex">
+        <div className="h-full flex overflow-hidden">
           {/* Left Panel — Task List */}
-          {!isExpanded && <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          <div className="flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden" style={{ width: isExpanded ? 0 : 320, opacity: isExpanded ? 0 : 1, transition: 'width 350ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease' }}>
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-3">Daily Tasks</h2>
               <div className="relative">
@@ -2910,27 +2921,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">{filteredTasks.length} of {dailyTasks.length} tasks</p>
             </div>
-          </div>}
+          </div>
 
           {/* Right Panel — Task Content */}
-          <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
-            {!selectedTask ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
-                  <NavIcon name="checklist" className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-500 mb-1">Select a task to view</h3>
-                <p className="text-sm text-gray-400">Choose a daily task from the list to read its details</p>
-              </div>
-            ) : (
-              <div className={`${isExpanded ? '' : 'max-w-5xl'} mx-auto px-8 py-8`}>
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
-                      {selectedTask.category}
-                    </span>
-                    {selectedTask.dtNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatDtNumber(selectedTask.dtNumber)}</div>}
-                    <h1 className="text-2xl font-bold text-gray-900">{selectedTask.title}</h1>
+          <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+
+            {/* Sticky header: title + action buttons (only when a task is selected) */}
+            {selectedTask && (
+              <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
+                <div className="mx-auto px-8 py-3 flex items-center justify-between" style={{ maxWidth: isExpanded ? '9999px' : '64rem', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full flex-shrink-0">
+                        {selectedTask.category}
+                      </span>
+                      {selectedTask.dtNumber && <span className="text-xs font-mono font-semibold text-blue-400">{formatDtNumber(selectedTask.dtNumber)}</span>}
+                    </div>
+                    <h1 className="text-base font-semibold text-gray-900 leading-snug">{selectedTask.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
                     <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
@@ -2943,11 +2950,27 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     </button>
                   </div>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
-                  {renderRichContent(selectedTask.content, glossary, handleContentClick)}
-                </div>
               </div>
             )}
+
+            {/* Scrollable body */}
+            <div ref={contentRef} className="flex-1 overflow-y-auto">
+              {!selectedTask ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                    <NavIcon name="checklist" className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-500 mb-1">Select a task to view</h3>
+                  <p className="text-sm text-gray-400">Choose a daily task from the list to read its details</p>
+                </div>
+              ) : (
+                <div className="mx-auto px-8 py-6" style={{ maxWidth: isExpanded ? '9999px' : '64rem', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
+                    {renderRichContent(selectedTask.content, glossary, handleContentClick)}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -3006,9 +3029,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       );
 
       return (
-        <div className="h-full flex">
+        <div className="h-full flex overflow-hidden">
           {/* Left Panel — Article List */}
-          {!isExpanded && <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          <div className="flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden" style={{ width: isExpanded ? 0 : 320, opacity: isExpanded ? 0 : 1, transition: 'width 350ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease' }}>
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-3">Knowledge Base</h2>
               <div className="relative">
@@ -3078,27 +3101,23 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">{filteredArticles.length} of {knowledgeBase.length} articles</p>
             </div>
-          </div>}
+          </div>
 
           {/* Right Panel — Article Content */}
-          <div ref={contentRef} className="flex-1 overflow-y-auto bg-gray-50">
-            {!selectedArticle ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
-                  <NavIcon name="lightbulb" className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-500 mb-1">Select an article to view</h3>
-                <p className="text-sm text-gray-400">{knowledgeBase.length === 0 ? 'Create articles from the Admin panel' : 'Choose an article from the list to read its content'}</p>
-              </div>
-            ) : (
-              <div className={`${isExpanded ? '' : 'max-w-5xl'} mx-auto px-8 py-8`}>
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <span className="inline-block text-xs font-medium bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full mb-3">
-                      {selectedArticle.category}
-                    </span>
-                    {selectedArticle.kbNumber && <div className="text-sm font-mono font-semibold text-blue-500 mb-1">{formatKbNumber(selectedArticle.kbNumber)}</div>}
-                    <h1 className="text-2xl font-bold text-gray-900">{selectedArticle.title}</h1>
+          <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+
+            {/* Sticky header: title + action buttons (only when an article is selected) */}
+            {selectedArticle && (
+              <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
+                <div className="mx-auto px-8 py-3 flex items-center justify-between" style={{ maxWidth: isExpanded ? '9999px' : '64rem', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full flex-shrink-0">
+                        {selectedArticle.category}
+                      </span>
+                      {selectedArticle.kbNumber && <span className="text-xs font-mono font-semibold text-blue-400">{formatKbNumber(selectedArticle.kbNumber)}</span>}
+                    </div>
+                    <h1 className="text-base font-semibold text-gray-900 leading-snug">{selectedArticle.title}</h1>
                   </div>
                   <div className="flex gap-2 flex-shrink-0 ml-4">
                     <ExpandToggleButton isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
@@ -3111,11 +3130,27 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                     </button>
                   </div>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
-                  {renderRichContent(selectedArticle.content, glossary, handleContentClick)}
-                </div>
               </div>
             )}
+
+            {/* Scrollable body */}
+            <div ref={contentRef} className="flex-1 overflow-y-auto">
+              {!selectedArticle ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mb-4">
+                    <NavIcon name="lightbulb" className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-500 mb-1">Select an article to view</h3>
+                  <p className="text-sm text-gray-400">{knowledgeBase.length === 0 ? 'Create articles from the Admin panel' : 'Choose an article from the list to read its content'}</p>
+                </div>
+              ) : (
+                <div className="mx-auto px-8 py-6" style={{ maxWidth: isExpanded ? '9999px' : '64rem', transition: 'max-width 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8">
+                    {renderRichContent(selectedArticle.content, glossary, handleContentClick)}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       );
