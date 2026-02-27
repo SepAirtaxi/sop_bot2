@@ -2363,6 +2363,11 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         }
       }, [guide]);
 
+      const prevStep = useCallback(() => {
+        if (!guide || guide.currentIndex === 0) return;
+        setGuide(prev => ({ ...prev, currentIndex: prev.currentIndex - 1 }));
+      }, [guide]);
+
       const exitGuide = useCallback(() => {
         setGuide(null);
         setViewMode('chat');
@@ -2418,6 +2423,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           <GuidedProcessWizard
             guide={guide}
             onNext={nextStep}
+            onBack={prevStep}
             onExit={exitGuide}
             onAskAboutStep={askAboutStep}
           />
@@ -2520,7 +2526,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // GUIDED PROCESS WIZARD (reusable)
     // ============================================================
 
-    function GuidedProcessWizard({ guide, onNext, onExit, onAskAboutStep }) {
+    function GuidedProcessWizard({ guide, onNext, onBack, onExit, onAskAboutStep }) {
       const { title, steps, currentIndex, completed } = guide;
       const currentStep = !completed ? steps[currentIndex] : null;
       const isLastStep = currentIndex >= steps.length - 1;
@@ -2599,13 +2605,24 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                         I have a question about this step
                       </button>
                     ) : <div />}
-                    <button
-                      onClick={onNext}
-                      className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      {isLastStep ? 'Complete' : 'Done, next step'}
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {currentIndex > 0 && (
+                        <button
+                          onClick={onBack}
+                          className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" /></svg>
+                          Back
+                        </button>
+                      )}
+                      <button
+                        onClick={onNext}
+                        className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        {isLastStep ? 'Complete' : 'Done, next step'}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2728,6 +2745,11 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         }
       }, [guide]);
 
+      const prevStep = useCallback(() => {
+        if (!guide || guide.currentIndex === 0) return;
+        setGuide(prev => ({ ...prev, currentIndex: prev.currentIndex - 1 }));
+      }, [guide]);
+
       const exitGuide = useCallback(() => {
         setGuide(null);
       }, []);
@@ -2738,6 +2760,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           <GuidedProcessWizard
             guide={guide}
             onNext={nextStep}
+            onBack={prevStep}
             onExit={exitGuide}
           />
         );
