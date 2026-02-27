@@ -205,6 +205,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Animated expand/collapse (2026-02-27): left panel slides out via CSS width/opacity transition, content area expands via max-width transition — smooth `cubic-bezier` easing on all three pages + Ask CAT bubble widths
 - Sticky action bar (2026-02-27): title + buttons extracted into a `flex-shrink-0` header above the scroll container on SOP Archive, Daily Tasks, and Knowledge Base — buttons always visible regardless of scroll position; compact two-line left side (category pill + ID on row 1, title on row 2)
 - Ask CAT rich rendering (2026-02-27): chat bot responses now run through the full `processContentLinks` + `processGlossaryTerms` pipeline — `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` cross-links render as clickable chips that navigate to the target document, and glossary terms show blue hover tooltips; `onCrossLink` prop threaded from `AppShell` → `AskCATPage`
+- Ask CAT cross-link activation (2026-02-27): `GeminiService.buildSystemPrompt` now includes document numbers in headings passed to Gemini (e.g. `## Title [SOP-005] (Category: ...)`) and the system prompt explicitly instructs Gemini to use `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` notation — previously Gemini only wrote plain bold titles which the front-end pipeline ignored
 
 ### Planned / Not Yet Started
 - Firestore security rules (restrict read/write to authenticated users)
