@@ -3690,6 +3690,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [categoryFilter, setCategoryFilter] = useState('');
       const [sortField, setSortField] = useState('category');
       const [sortDir, setSortDir] = useState('asc');
+      const [copiedLoc, setCopiedLoc] = useState(null);
+
+      const copyLocation = (loc) => {
+        navigator.clipboard.writeText(loc).then(() => {
+          setCopiedLoc(loc);
+          setTimeout(() => setCopiedLoc(null), 1500);
+        });
+      };
 
       const categories = useMemo(() => {
         const cats = [...new Set(partLocations.map(p => p.category))];
@@ -3814,7 +3822,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                         <td className="px-6 py-3">
                           <div className="flex flex-wrap gap-1.5">
                             {(entry.locations || []).map((loc, i) => (
-                              <span key={i} className="inline-flex px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-mono font-medium rounded">{loc}</span>
+                              <button
+                                key={i}
+                                onClick={() => copyLocation(loc)}
+                                title="Click to copy"
+                                className="inline-flex px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-mono font-medium rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer"
+                              >
+                                {copiedLoc === loc ? '✓ Copied' : loc}
+                              </button>
                             ))}
                           </div>
                         </td>
