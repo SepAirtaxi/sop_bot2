@@ -3959,6 +3959,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Model</th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">MSN</th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Owner</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Status</th>
                       <th className="px-4 py-3"></th>
                     </tr>
                   </thead>
@@ -3972,6 +3973,16 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                         <td className="px-4 py-3 text-sm text-gray-800">{ac.model || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-500 font-mono">{ac.msn || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{ac.owner || '—'}</td>
+                        <td className="px-4 py-3">
+                          {ac.airworthy !== false
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Airworthy
+                              </span>
+                            : <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-600 text-xs font-medium rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>Not Airworthy
+                              </span>
+                          }
+                        </td>
                         <td className="px-4 py-3">
                           {ac.flightRadarUrl ? (
                             <a
@@ -5349,6 +5360,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         return (
           <AircraftFormModal
             entry={editingEntry}
+            aircraft={aircraft}
             onSave={handleSave}
             onClose={() => { setShowForm(false); setEditingEntry(null); }}
           />
@@ -5404,6 +5416,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                             Live
                           </span>
                         )}
+                        {ac.airworthy === false && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-100 text-red-600 text-xs font-medium rounded">Not Airworthy</span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">{ac.owner || ''}</div>
                     </div>
@@ -5433,14 +5448,19 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // MODAL: AIRCRAFT FORM
     // ============================================================
 
-    function AircraftFormModal({ entry, onSave, onClose }) {
+    function AircraftFormModal({ entry, aircraft = [], onSave, onClose }) {
       useEscapeKey(onClose);
       const [make, setMake] = useState(entry?.make || '');
       const [model, setModel] = useState(entry?.model || '');
+
+      const suggestedMakes = useMemo(() => [...new Set(aircraft.map(a => a.make).filter(Boolean))].sort(), [aircraft]);
+      const suggestedModels = useMemo(() => [...new Set(aircraft.map(a => a.model).filter(Boolean))].sort(), [aircraft]);
+      const suggestedOwners = useMemo(() => [...new Set(aircraft.map(a => a.owner).filter(Boolean))].sort(), [aircraft]);
       const [tailNumber, setTailNumber] = useState(entry?.tailNumber || '');
       const [msn, setMsn] = useState(entry?.msn || '');
       const [owner, setOwner] = useState(entry?.owner || '');
       const [flightRadarUrl, setFlightRadarUrl] = useState(entry?.flightRadarUrl || '');
+      const [airworthy, setAirworthy] = useState(entry ? (entry.airworthy !== false) : true);
 
       const canSave = tailNumber.trim().length > 0;
 
@@ -5452,6 +5472,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           msn: msn.trim(),
           owner: owner.trim(),
           flightRadarUrl: flightRadarUrl.trim(),
+          airworthy,
         });
       };
 
@@ -5468,11 +5489,13 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Make</label>
-                  <input type="text" value={make} onChange={(e) => setMake(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Boeing" />
+                  <input type="text" list="ac-makes" value={make} onChange={(e) => setMake(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Boeing" />
+                  <datalist id="ac-makes">{suggestedMakes.map(m => <option key={m} value={m} />)}</datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Model</label>
-                  <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. 737-800" />
+                  <input type="text" list="ac-models" value={model} onChange={(e) => setModel(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. 737-800" />
+                  <datalist id="ac-models">{suggestedModels.map(m => <option key={m} value={m} />)}</datalist>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -5487,11 +5510,25 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Owner</label>
-                <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Airseven" />
+                <input type="text" list="ac-owners" value={owner} onChange={(e) => setOwner(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Airseven" />
+                <datalist id="ac-owners">{suggestedOwners.map(o => <option key={o} value={o} />)}</datalist>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">FlightRadar24 URL <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input type="url" value={flightRadarUrl} onChange={(e) => setFlightRadarUrl(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="https://www.flightradar24.com/..." />
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">Airworthy</div>
+                  <div className="text-xs text-gray-400">Currently cleared for flight operations</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAirworthy(v => !v)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${airworthy ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${airworthy ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
               </div>
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3 flex-shrink-0">
