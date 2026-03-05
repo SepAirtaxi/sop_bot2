@@ -3954,31 +3954,17 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="w-16 px-4 py-3"></th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Tail Number</th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Make</th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Model</th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">MSN</th>
                       <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Owner</th>
+                      <th className="px-4 py-3"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {sorted.map((ac) => (
                       <tr key={ac.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3">
-                          {ac.photoUrl ? (
-                            <img
-                              src={ac.photoUrl}
-                              alt={ac.tailNumber}
-                              className="w-12 h-8 object-cover rounded"
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div className="w-12 h-8 bg-gray-100 rounded flex items-center justify-center">
-                              <NavIcon name="aircraft" className="w-4 h-4 text-gray-300" />
-                            </div>
-                          )}
-                        </td>
                         <td className="px-4 py-3">
                           <span className="font-mono font-semibold text-blue-700 text-sm">{ac.tailNumber || '—'}</span>
                         </td>
@@ -3986,6 +3972,19 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                         <td className="px-4 py-3 text-sm text-gray-800">{ac.model || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-500 font-mono">{ac.msn || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{ac.owner || '—'}</td>
+                        <td className="px-4 py-3">
+                          {ac.flightRadarUrl ? (
+                            <a
+                              href={ac.flightRadarUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 18a8 8 0 110-16 8 8 0 010 16z" opacity=".3"/><path d="M12 6a6 6 0 100 12A6 6 0 0012 6zm0 10a4 4 0 110-8 4 4 0 010 8z" opacity=".5"/></svg>
+                              Track Live
+                            </a>
+                          ) : null}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -5394,17 +5393,18 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               {sorted.map((ac) => (
                 <div key={ac.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {ac.photoUrl ? (
-                      <img src={ac.photoUrl} alt={ac.tailNumber} className="w-12 h-8 object-cover rounded flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                    ) : (
-                      <div className="w-12 h-8 bg-gray-100 rounded flex-shrink-0 flex items-center justify-center">
-                        <NavIcon name="aircraft" className="w-4 h-4 text-gray-300" />
-                      </div>
-                    )}
                     <div className="min-w-0">
-                      <span className="font-mono font-semibold text-blue-700 text-sm">{ac.tailNumber || '—'}</span>
-                      <span className="text-gray-500 text-sm ml-2">{ac.make} {ac.model}</span>
-                      <span className="text-xs text-gray-400 ml-3">MSN {ac.msn || '—'}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-semibold text-blue-700 text-sm">{ac.tailNumber || '—'}</span>
+                        <span className="text-gray-500 text-sm">{ac.make} {ac.model}</span>
+                        <span className="text-xs text-gray-400">MSN {ac.msn || '—'}</span>
+                        {ac.flightRadarUrl && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-100 text-orange-600 text-xs font-medium rounded">
+                            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg>
+                            Live
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-gray-400 mt-0.5">{ac.owner || ''}</div>
                     </div>
                   </div>
@@ -5440,7 +5440,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [tailNumber, setTailNumber] = useState(entry?.tailNumber || '');
       const [msn, setMsn] = useState(entry?.msn || '');
       const [owner, setOwner] = useState(entry?.owner || '');
-      const [photoUrl, setPhotoUrl] = useState(entry?.photoUrl || '');
+      const [flightRadarUrl, setFlightRadarUrl] = useState(entry?.flightRadarUrl || '');
 
       const canSave = tailNumber.trim().length > 0;
 
@@ -5451,7 +5451,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           tailNumber: tailNumber.trim().toUpperCase(),
           msn: msn.trim(),
           owner: owner.trim(),
-          photoUrl: photoUrl.trim(),
+          flightRadarUrl: flightRadarUrl.trim(),
         });
       };
 
@@ -5490,13 +5490,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Airseven" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Photo URL <span className="text-gray-400 font-normal">(optional)</span></label>
-                <input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="https://..." />
-                {photoUrl && (
-                  <div className="mt-2">
-                    <img src={photoUrl} alt="Preview" className="h-20 rounded border border-gray-200 object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                  </div>
-                )}
+                <label className="block text-xs font-medium text-gray-500 mb-1">FlightRadar24 URL <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input type="url" value={flightRadarUrl} onChange={(e) => setFlightRadarUrl(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="https://www.flightradar24.com/..." />
               </div>
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3 flex-shrink-0">
