@@ -287,6 +287,12 @@
       async updatePartLocation(id, data) { return this.update('partLocations', id, data); },
       async deletePartLocation(id) { return this.remove('partLocations', id); },
 
+      // -- Aircraft-specific --
+      async getAircraft() { return this.getAll('aircraft'); },
+      async saveAircraft(data) { return this.add('aircraft', data); },
+      async updateAircraft(id, data) { return this.update('aircraft', id, data); },
+      async deleteAircraft(id) { return this.remove('aircraft', id); },
+
       // -- Users --
       async upsertUser(uid, email) {
         this._ensureDb();
@@ -1671,6 +1677,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
 
     const NAV_ITEMS = [
       { id: 'ask-cat', label: 'Ask CAT', icon: 'chat' },
+      { id: 'aircraft', label: 'Aircraft', icon: 'aircraft' },
       { id: 'contacts', label: 'Contacts', icon: 'people' },
       { id: 'daily-tasks', label: 'Daily Tasks', icon: 'checklist' },
       { id: 'glossary', label: 'Glossary', icon: 'book' },
@@ -1694,6 +1701,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         lightbulb: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
         warehouse: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21V8l9-5 9 5v13M3 21h18M7 21v-6h4v6M13 21v-6h4v6M3 8h18M7 12h2M15 12h2" /></svg>,
         pricing: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>,
+        aircraft: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>,
         admin: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
         logout: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
       };
@@ -1792,6 +1800,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       const [knowledgeBase, setKnowledgeBase] = useState([]);
       const [pricing, setPricing] = useState([]);
       const [partLocations, setPartLocations] = useState([]);
+      const [aircraft, setAircraft] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
       const [dataError, setDataError] = useState(null);
       const [isAdmin, setIsAdmin] = useState(false);
@@ -1826,7 +1835,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           }
 
           try {
-            let [loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing, loadedPartLocations] = await Promise.all([
+            let [loadedSops, loadedGlossary, loadedContacts, loadedDailyTasks, loadedKnowledgeBase, loadedPricing, loadedPartLocations, loadedAircraft] = await Promise.all([
               FirestoreService.getSOPs(),
               FirestoreService.getGlossary(),
               FirestoreService.getContacts(),
@@ -1834,6 +1843,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               FirestoreService.getKnowledgeBase(),
               FirestoreService.getPricing(),
               FirestoreService.getPartLocations(),
+              FirestoreService.getAircraft(),
             ]);
 
             // Seed defaults if collections are empty (first-time setup)
@@ -1899,6 +1909,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             setKnowledgeBase(loadedKnowledgeBase);
             setPricing(loadedPricing);
             setPartLocations(loadedPartLocations);
+            setAircraft(loadedAircraft);
             setCategories(DEFAULT_CATEGORIES);
           } catch (error) {
             console.error('Failed to load data from Firestore:', error);
@@ -2066,6 +2077,29 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         setPartLocations(prev => prev.filter(p => p.id !== id));
       };
 
+      // -- Aircraft handlers --
+      const handleAircraftCreate = async (data) => {
+        const now = new Date().toISOString();
+        const firestoreId = await FirestoreService.saveAircraft(data);
+        const newEntry = { ...data, id: firestoreId, createdAt: now, updatedAt: now };
+        const updated = [...aircraft, newEntry].sort((a, b) => a.tailNumber.localeCompare(b.tailNumber));
+        setAircraft(updated);
+        return firestoreId;
+      };
+
+      const handleAircraftUpdate = async (id, data) => {
+        const now = new Date().toISOString();
+        await FirestoreService.updateAircraft(id, data);
+        const updated = aircraft.map(a => a.id === id ? { ...a, ...data, updatedAt: now } : a)
+          .sort((a, b) => a.tailNumber.localeCompare(b.tailNumber));
+        setAircraft(updated);
+      };
+
+      const handleAircraftDelete = async (id) => {
+        await FirestoreService.deleteAircraft(id);
+        setAircraft(prev => prev.filter(a => a.id !== id));
+      };
+
       if (authLoading || isLoading) {
         return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -2092,6 +2126,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           knowledgeBase={knowledgeBase}
           pricing={pricing}
           partLocations={partLocations}
+          aircraft={aircraft}
           dataError={dataError}
           onDismissError={() => setDataError(null)}
           onSopCreate={handleSopCreate}
@@ -2115,6 +2150,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
           onPartLocationCreate={handlePartLocationCreate}
           onPartLocationUpdate={handlePartLocationUpdate}
           onPartLocationDelete={handlePartLocationDelete}
+          onAircraftCreate={handleAircraftCreate}
+          onAircraftUpdate={handleAircraftUpdate}
+          onAircraftDelete={handleAircraftDelete}
           onLogout={handleLogout}
         />
       );
@@ -2236,7 +2274,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     // ============================================================
 
     function AppShell(props) {
-      const { currentUser, isAdmin, sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing, partLocations,
+      const { currentUser, isAdmin, sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing, partLocations, aircraft,
         dataError, onDismissError,
         onSopCreate, onSopUpdate, onSopDelete,
         onTermCreate, onTermUpdate, onTermDelete,
@@ -2245,6 +2283,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
         onKBCreate, onKBArticleUpdate, onKBDelete,
         onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
         onPartLocationCreate, onPartLocationUpdate, onPartLocationDelete,
+        onAircraftCreate, onAircraftUpdate, onAircraftDelete,
         onLogout } = props;
       const [currentPage, setCurrentPage] = useState('ask-cat');
       const [deepLinkTarget, setDeepLinkTarget] = useState(null);
@@ -2272,6 +2311,8 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
             return <KnowledgeBasePage knowledgeBase={knowledgeBase} glossary={glossary} onNavigate={handleNavigate} onCrossLink={handleCrossLinkClick} deepLinkTarget={deepLinkTarget} onClearDeepLink={() => setDeepLinkTarget(null)} />;
           case 'glossary':
             return <GlossaryPage glossary={glossary} />;
+          case 'aircraft':
+            return <AircraftPage aircraft={aircraft} />;
           case 'contacts':
             return <ContactsPage contacts={contacts} />;
           case 'part-locations':
@@ -2290,6 +2331,7 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 knowledgeBase={knowledgeBase}
                 pricing={pricing}
                 partLocations={partLocations}
+                aircraft={aircraft}
                 onSopCreate={onSopCreate}
                 onSopUpdate={onSopUpdate}
                 onSopDelete={onSopDelete}
@@ -2311,6 +2353,9 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onPartLocationCreate={onPartLocationCreate}
                 onPartLocationUpdate={onPartLocationUpdate}
                 onPartLocationDelete={onPartLocationDelete}
+                onAircraftCreate={onAircraftCreate}
+                onAircraftUpdate={onAircraftUpdate}
+                onAircraftDelete={onAircraftDelete}
               />
             );
           default:
@@ -3845,6 +3890,114 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
     }
 
     // ============================================================
+    // PAGE: AIRCRAFT
+    // ============================================================
+
+    function AircraftPage({ aircraft }) {
+      const [searchQuery, setSearchQuery] = useState('');
+
+      const filtered = useMemo(() => {
+        if (!searchQuery.trim()) return aircraft;
+        const q = searchQuery.toLowerCase();
+        return aircraft.filter(a =>
+          (a.make || '').toLowerCase().includes(q) ||
+          (a.model || '').toLowerCase().includes(q) ||
+          (a.tailNumber || '').toLowerCase().includes(q) ||
+          (a.msn || '').toLowerCase().includes(q) ||
+          (a.owner || '').toLowerCase().includes(q)
+        );
+      }, [aircraft, searchQuery]);
+
+      const sorted = useMemo(() => {
+        return [...filtered].sort((a, b) => (a.tailNumber || '').localeCompare(b.tailNumber || ''));
+      }, [filtered]);
+
+      return (
+        <div className="h-full overflow-auto bg-gray-50">
+          <div className="max-w-6xl mx-auto px-8 py-8">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-800">Aircraft</h1>
+              <p className="text-gray-500 text-sm mt-1">Fleet overview — all aircraft CAT Flyservice operates on</p>
+            </div>
+
+            {aircraft.length > 0 && (
+              <div className="flex gap-3 mb-4">
+                <div className="relative flex-1 max-w-md">
+                  <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by make, model, tail number, MSN, or owner..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <div className="flex items-center text-xs text-gray-400 ml-auto">
+                  {sorted.length === aircraft.length
+                    ? `${aircraft.length} aircraft`
+                    : `${sorted.length} of ${aircraft.length} aircraft`}
+                </div>
+              </div>
+            )}
+
+            {sorted.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 px-8 py-16 text-center">
+                <NavIcon name="aircraft" className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">
+                  {aircraft.length === 0
+                    ? 'No aircraft registered yet. Add them via the Admin panel.'
+                    : 'No aircraft match your search.'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="w-16 px-4 py-3"></th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Tail Number</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Make</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Model</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">MSN</th>
+                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Owner</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {sorted.map((ac) => (
+                      <tr key={ac.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          {ac.photoUrl ? (
+                            <img
+                              src={ac.photoUrl}
+                              alt={ac.tailNumber}
+                              className="w-12 h-8 object-cover rounded"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-12 h-8 bg-gray-100 rounded flex items-center justify-center">
+                              <NavIcon name="aircraft" className="w-4 h-4 text-gray-300" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-semibold text-blue-700 text-sm">{ac.tailNumber || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-800">{ac.make || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-800">{ac.model || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 font-mono">{ac.msn || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{ac.owner || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // PAGE: ADMIN (Tabbed Interface)
     // ============================================================
 
@@ -3856,18 +4009,20 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
       { id: 'contacts', label: 'Contacts' },
       { id: 'pricing', label: 'Pricing' },
       { id: 'partLocations', label: 'Part Locations' },
+      { id: 'aircraft', label: 'Aircraft' },
       { id: 'users', label: 'Users' },
     ];
 
     function AdminPage(props) {
-      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing, partLocations,
+      const { sops, categories, glossary, contacts, dailyTasks, knowledgeBase, pricing, partLocations, aircraft,
         onSopCreate, onSopUpdate, onSopDelete,
         onTermCreate, onTermUpdate, onTermDelete,
         onContactCreate, onContactUpdate, onContactDelete,
         onDailyTaskCreate, onDailyTaskUpdate, onDailyTaskDelete,
         onKBCreate, onKBArticleUpdate, onKBDelete,
         onPricingEntityCreate, onPricingEntityUpdate, onPricingEntityDelete,
-        onPartLocationCreate, onPartLocationUpdate, onPartLocationDelete } = props;
+        onPartLocationCreate, onPartLocationUpdate, onPartLocationDelete,
+        onAircraftCreate, onAircraftUpdate, onAircraftDelete } = props;
       const [activeTab, setActiveTab] = useState('sops');
 
       return (
@@ -3952,6 +4107,14 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
                 onEntryCreate={onPartLocationCreate}
                 onEntryUpdate={onPartLocationUpdate}
                 onEntryDelete={onPartLocationDelete}
+              />
+            )}
+            {activeTab === 'aircraft' && (
+              <AdminAircraftTab
+                aircraft={aircraft}
+                onAircraftCreate={onAircraftCreate}
+                onAircraftUpdate={onAircraftUpdate}
+                onAircraftDelete={onAircraftDelete}
               />
             )}
             {activeTab === 'users' && <AdminUsersTab />}
@@ -5149,6 +5312,204 @@ ${kbRef ? `\nKNOWLEDGE BASE REFERENCE:\n${kbRef}` : ''}`;
               </table>
             </div>
           )}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // ADMIN TAB: AIRCRAFT
+    // ============================================================
+
+    function AdminAircraftTab({ aircraft, onAircraftCreate, onAircraftUpdate, onAircraftDelete }) {
+      const [editingEntry, setEditingEntry] = useState(null);
+      const [showForm, setShowForm] = useState(false);
+      const [searchQuery, setSearchQuery] = useState('');
+
+      const handleDelete = async (id) => {
+        if (confirm('Delete this aircraft entry?')) {
+          try { await onAircraftDelete(id); }
+          catch (e) { alert('Failed to delete: ' + e.message); }
+        }
+      };
+
+      const handleSave = async (data) => {
+        try {
+          if (editingEntry) {
+            await onAircraftUpdate(editingEntry.id, data);
+          } else {
+            await onAircraftCreate(data);
+          }
+          setShowForm(false);
+          setEditingEntry(null);
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
+        }
+      };
+
+      if (showForm || editingEntry) {
+        return (
+          <AircraftFormModal
+            entry={editingEntry}
+            onSave={handleSave}
+            onClose={() => { setShowForm(false); setEditingEntry(null); }}
+          />
+        );
+      }
+
+      const filtered = searchQuery.trim()
+        ? aircraft.filter(a => {
+            const q = searchQuery.toLowerCase();
+            return (a.make || '').toLowerCase().includes(q) ||
+              (a.model || '').toLowerCase().includes(q) ||
+              (a.tailNumber || '').toLowerCase().includes(q) ||
+              (a.msn || '').toLowerCase().includes(q) ||
+              (a.owner || '').toLowerCase().includes(q);
+          })
+        : aircraft;
+
+      const sorted = [...filtered].sort((a, b) => (a.tailNumber || '').localeCompare(b.tailNumber || ''));
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{aircraft.length} aircraft</p>
+            <button onClick={() => setShowForm(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Add Aircraft</button>
+          </div>
+          {aircraft.length > 0 && (
+            <div className="mb-3">
+              <div className="relative max-w-sm">
+                <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search aircraft..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+            </div>
+          )}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {sorted.map((ac) => (
+                <div key={ac.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {ac.photoUrl ? (
+                      <img src={ac.photoUrl} alt={ac.tailNumber} className="w-12 h-8 object-cover rounded flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      <div className="w-12 h-8 bg-gray-100 rounded flex-shrink-0 flex items-center justify-center">
+                        <NavIcon name="aircraft" className="w-4 h-4 text-gray-300" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <span className="font-mono font-semibold text-blue-700 text-sm">{ac.tailNumber || '—'}</span>
+                      <span className="text-gray-500 text-sm ml-2">{ac.make} {ac.model}</span>
+                      <span className="text-xs text-gray-400 ml-3">MSN {ac.msn || '—'}</span>
+                      <div className="text-xs text-gray-400 mt-0.5">{ac.owner || ''}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => setEditingEntry(ac)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <EditIcon />
+                    </button>
+                    <button onClick={() => handleDelete(ac.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <DeleteIcon />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {sorted.length === 0 && (
+                <div className="px-5 py-12 text-center text-gray-400 text-sm">
+                  {aircraft.length === 0 ? 'No aircraft yet. Add your first one.' : 'No entries match your search.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // MODAL: AIRCRAFT FORM
+    // ============================================================
+
+    function AircraftFormModal({ entry, onSave, onClose }) {
+      useEscapeKey(onClose);
+      const [make, setMake] = useState(entry?.make || '');
+      const [model, setModel] = useState(entry?.model || '');
+      const [tailNumber, setTailNumber] = useState(entry?.tailNumber || '');
+      const [msn, setMsn] = useState(entry?.msn || '');
+      const [owner, setOwner] = useState(entry?.owner || '');
+      const [photoUrl, setPhotoUrl] = useState(entry?.photoUrl || '');
+
+      const canSave = tailNumber.trim().length > 0;
+
+      const handleSave = () => {
+        onSave({
+          make: make.trim(),
+          model: model.trim(),
+          tailNumber: tailNumber.trim().toUpperCase(),
+          msn: msn.trim(),
+          owner: owner.trim(),
+          photoUrl: photoUrl.trim(),
+        });
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-semibold">{entry ? 'Edit Aircraft' : 'Add Aircraft'}</h2>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="px-6 py-5 overflow-y-auto flex-1 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Make</label>
+                  <input type="text" value={make} onChange={(e) => setMake(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Boeing" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Model</label>
+                  <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. 737-800" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Tail Number <span className="text-red-400">*</span></label>
+                  <input type="text" value={tailNumber} onChange={(e) => setTailNumber(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono" placeholder="e.g. OY-ASE" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">MSN</label>
+                  <input type="text" value={msn} onChange={(e) => setMsn(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono" placeholder="e.g. 35098" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Owner</label>
+                <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="e.g. Airseven" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Photo URL <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="https://..." />
+                {photoUrl && (
+                  <div className="mt-2">
+                    <img src={photoUrl} alt="Preview" className="h-20 rounded border border-gray-200 object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-3 flex-shrink-0">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+              >
+                {entry ? 'Save Changes' : 'Add Aircraft'}
+              </button>
+            </div>
+          </div>
         </div>
       );
     }
