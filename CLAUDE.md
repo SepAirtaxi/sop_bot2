@@ -1,10 +1,10 @@
 # CAT Onboard
 
 ## What This Is
-Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance company). New hires use it to look up standard operating procedures, contacts, glossary terms, daily tasks, knowledge base articles, pricing info, and warehouse part locations. An AI chat ("Ask CAT") powered by Gemini answers questions based on SOP content.
+Internal onboarding assistant for CAT Flyservice (Danish aircraft maintenance company). New hires use it to look up standard operating procedures, contacts, glossary terms, daily tasks, knowledge base articles, pricing info, warehouse part locations, and fleet aircraft. An AI chat ("Ask CAT") powered by Gemini answers questions based on SOP content.
 
 ## Tech Stack
-- **Single-file app**: Everything lives in `index.html` (~5065 lines)
+- **Single-file app**: Everything lives in `index.html` (~5671 lines)
 - **React 18 + Tailwind CSS** via CDN (production builds) — no build step, no bundler
 - **Babel standalone** for JSX transpilation in-browser
 - **Firebase Firestore** as sole data store (live config in `CONFIG.firebase`)
@@ -36,7 +36,7 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 |-----------------|---------|
 | 1–89 | HTML head, CSS styles, animations, glossary tooltip styles |
 | 100–135 | CONFIG + Firebase initialization (Firestore + Auth) |
-| 138–330 | `FirestoreService` — generic CRUD + collection-specific helpers (incl. partLocations, users) |
+| 138–330 | `FirestoreService` — generic CRUD + collection-specific helpers (incl. partLocations, aircraft, users) |
 | 257–360 | Helpers: `timeAgo()`, formatters, `processContentLinks()`, `processGlossaryTerms()` |
 | 362–447 | Shared UI helpers: `renderMarkdown()`, `renderRichContent()`, `createCrossLinkHandler()`, `ExpandToggleButton`, icon components, `useEscapeKey` hook |
 | 448–868 | `DEFAULT_SOPS` — hardcoded SOP content (Markdown strings, with `sopNumber`) |
@@ -45,11 +45,11 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | 1152–1160 | `INITIAL_CONTACTS` data |
 | 1162–1435 | `INITIAL_PART_LOCATIONS` (271 entries with category, subcategory, locations array) |
 | 1440–1592 | `GeminiService` — builds system prompt, calls `/api/chat` |
-| 1594–1701 | `NAV_ITEMS` config + `NavIcon` SVG component |
+| 1594–1710 | `NAV_ITEMS` config + `NavIcon` SVG component (incl. `aircraft` icon) |
 | 1703–1779 | `AiAvatar` — bot chat avatar with sparkle icon + cat easter egg (`AiSparkleIcon`, `CatFaceIcon`, `aiEasterEggScheduler`) |
-| 1781–2030 | `App` — root component (auth state + role loading, data loading, migration, CRUD handlers) |
+| 1781–2160 | `App` — root component (auth state + role loading, data loading, migration, CRUD handlers incl. aircraft) |
 | 1959–2022 | `LoginScreen` |
-| 2024–2195 | `AppShell` — sidebar + content area, page routing, deep-link navigation |
+| 2234–2410 | `AppShell` — sidebar + content area, page routing, deep-link navigation |
 | 2197–2440 | `AskCATPage` — chat interface + inline wizard mode |
 | 2442–2567 | `GuidedProcessWizard` — step-by-step card UI |
 | 2569–2814 | `SOPArchivePage` — searchable SOP list with full viewer + cross-links |
@@ -59,25 +59,19 @@ The entire app is one HTML file with embedded `<script type="text/babel">`. Sect
 | 3228–3272 | `ContactsPage` — contact cards |
 | 3274–3409 | `PricingPage` — pricing entity display |
 | 3411–3557 | `PartLocationsPage` — searchable/sortable table with location badges |
-| 3559–3670 | `AdminPage` — tabbed admin panel (8 tabs) |
-| 3673–3753 | `AdminSOPsTab` |
-| 3755–3840 | `AdminDailyTasksTab` |
-| 3842–3927 | `AdminKnowledgeBaseTab` |
-| 3929–4072 | `SOPEditor` — reused for SOPs, daily tasks, KB articles (with `[[]]` toolbar) |
-| 4074–4165 | `AdminGlossaryTab` |
-| 4167–4239 | `GlossaryFormModal` |
-| 4241–4311 | `AdminContactsTab` |
-| 4313–4383 | `AdminPricingTab` |
-| 4385–4489 | `AdminPartLocationsTab` |
-| 4490–4603 | `PartLocationFormModal` |
-| 4604–4734 | `PricingEntityFormModal` |
-| 4736–4793 | `ContactFormModal` |
-| 4930–4995 | `AdminUsersTab` — users table (email, role badge, last login, first seen) |
-| 4997–5000 | ReactDOM render |
+| 3559–3670 | `AircraftPage` — sortable fleet table with status badges + live tracking links |
+| ~3893 | `AdminPage` — tabbed admin panel (9 tabs) |
+| — | `AdminSOPsTab`, `AdminDailyTasksTab`, `AdminKnowledgeBaseTab` |
+| — | `AdminGlossaryTab`, `AdminContactsTab`, `AdminPricingTab` |
+| — | `AdminPartLocationsTab`, `PartLocationFormModal` |
+| — | `PricingEntityFormModal`, `ContactFormModal` |
+| — | `AdminAircraftTab`, `AircraftFormModal` |
+| — | `AdminUsersTab` — users table (email, role badge, last login, first seen) |
+| ~5521 | ReactDOM render |
 
 ### Routing
 State-based via `currentPage` in `AppShell`. No URL router — just a switch on page ID:
-- `ask-cat` (default), `sop-archive`, `daily-tasks`, `knowledge-base`, `glossary`, `contacts`, `part-locations`, `pricing`, `admin`
+- `ask-cat` (default), `aircraft`, `sop-archive`, `daily-tasks`, `knowledge-base`, `glossary`, `contacts`, `part-locations`, `pricing`, `admin`
 - `handleNavigate(page, target?)` supports deep-linking with optional `{ type, number }` target for cross-link navigation
 
 ### Data Flow
@@ -119,6 +113,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 | `knowledgeBase` | kbNumber, title, category, content (Markdown), timestamps |
 | `pricing` | entityName, ranges (array of {from, to, markup}), timestamps |
 | `partLocations` | category, subcategory, locations (array of code strings), timestamps |
+| `aircraft` | make, model, tailNumber, msn, owner, airworthy (bool), flightRadarUrl, timestamps |
 | `users` | email, role (`admin`/`user`), createdAt, lastLogin (doc ID = Firebase Auth UID) |
 
 ## Environment Variables
@@ -176,16 +171,26 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Runs after `processContentLinks()` in the render pipeline: `processGlossaryTerms(processContentLinks(marked.parse(content)), glossary)`
 - Pure CSS tooltips (no JS hover handlers) — `.glossary-term` and `.glossary-tooltip` classes
 
+### Aircraft Module
+- Firestore collection: `aircraft` (make, model, tailNumber, msn, owner, airworthy, flightRadarUrl, timestamps)
+- No seed data — starts empty, admin adds entries manually
+- `tailNumber` is the required field; auto-uppercased on save; list sorted by tail number
+- `airworthy` is a boolean (default `true`); existing docs without the field treated as airworthy (`!== false` check)
+- `flightRadarUrl` is optional; when set, shows an orange "Track Live" button opening in a new tab
+- **`AircraftPage`**: full-width sortable table — all 6 data columns (Tail Number, Make, Model, MSN, Owner, Status) are clickable to sort asc/desc; blue chevron indicates active sort column
+- **`AdminAircraftTab`**: searchable list with "Not Airworthy" and "Live" badges; links to `AircraftFormModal`
+- **`AircraftFormModal`**: Make, Model, Owner fields use `<datalist>` populated from existing aircraft for autocomplete suggestions; toggle switch for Airworthy status
+
 ## Deployment
 - Hosted on Vercel at production URL
 - `vercel dev` for local development
 - `vercel --prod` for production deploy
 - SPA rewrites configured in `vercel.json`
 
-## Current Status (updated 2026-02-27)
+## Current Status (updated 2026-03-05)
 ### Completed
 - Role-based access (2026-02-27): `users` Firestore collection, `upsertUser()` on login, `isAdmin` prop flow, Admin Panel gated behind admin role, Users tab in admin panel showing all logged-in accounts with role badge + timestamps; `sep@aircat.dk` hardcoded as sole admin on first login
-- Full app shell with sidebar navigation (9 pages + admin)
+- Full app shell with sidebar navigation (10 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
 - SOP Archive with search and full viewer
 - Daily Tasks page with categories
@@ -193,7 +198,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Glossary page (abbreviations + terms)
 - Contacts page
 - Pricing page
-- Admin panel with tabs for all content types (SOPs, Daily Tasks, KB, Glossary, Contacts, Pricing, Part Locations)
+- Admin panel with tabs for all content types (SOPs, Daily Tasks, KB, Glossary, Contacts, Pricing, Part Locations, Aircraft)
 - Firebase Firestore as sole data store (localStorage fallback removed 2026-02-26)
 - Firebase Authentication (email + password, admin-managed accounts, persistent sessions)
 - Auto-numbering for SOPs (SOP-001), Daily Tasks (DT-001), and KB articles (KB-001)
@@ -208,6 +213,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - Ask CAT rich rendering (2026-02-27): chat bot responses now run through the full `processContentLinks` + `processGlossaryTerms` pipeline — `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` cross-links render as clickable chips that navigate to the target document, and glossary terms show blue hover tooltips; `onCrossLink` prop threaded from `AppShell` → `AskCATPage`
 - Ask CAT avatar + easter egg (2026-02-27): `NavIcon chat` replaced with AI sparkles icon (two 4-pointed stars); bot chat bubble avatar replaced with `AiAvatar` component showing `AiSparkleIcon`; a singleton `aiEasterEggScheduler` fires a `cat-easter-egg` CustomEvent every 1–3 minutes — all visible avatars simultaneously scaleX-flip to `CatFaceIcon` for ~3.5s then flip back
 - Ask CAT cross-link activation (2026-02-27): `GeminiService.buildSystemPrompt` now includes document numbers in headings passed to Gemini (e.g. `## Title [SOP-005] (Category: ...)`) and the system prompt explicitly instructs Gemini to use `[[SOP-001]]`/`[[DT-001]]`/`[[KB-001]]` notation — previously Gemini only wrote plain bold titles which the front-end pipeline ignored
+- Aircraft module (2026-03-05): fleet overview page with sortable table (all columns), airworthy status badge (green/red), FlightRadar24 live tracking button (orange), admin CRUD tab with toggle switch for airworthy status, `<datalist>` autocomplete on Make/Model/Owner fields from existing entries, Firestore `aircraft` collection
 
 ### Planned / Not Yet Started
 - Firestore security rules (restrict read/write to authenticated users)
