@@ -122,6 +122,7 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 | `GEMINI_API_KEY` | Vercel env vars | Google Gemini API key for chat |
 
 ## Conventions
+- **CDN dependencies must be version-pinned** — this is a no-build app whose JSX is compiled in the browser by Babel Standalone, so an unpinned script tag serving a new major version blanks the whole app for every user with no server-side error. Always pin exact versions in `index.html` `<script>` tags; bump deliberately and test before deploying. (See 2026-06-17 fix.)
 - All components are function components using hooks
 - Component names are PascalCase, function names camelCase
 - Tailwind utility classes for all styling (no separate CSS files beyond the `<style>` block)
@@ -187,8 +188,9 @@ State-based via `currentPage` in `AppShell`. No URL router — just a switch on 
 - `vercel --prod` for production deploy
 - SPA rewrites configured in `vercel.json`
 
-## Current Status (updated 2026-03-05)
+## Current Status (updated 2026-06-17)
 ### Completed
+- CDN version pinning / blank-page fix (2026-06-17): app went blank for all users with no code change and no Vercel errors — root cause was unpinned CDN `<script>` tags auto-serving new major versions (`@babel/standalone` rolled to 8.x, breaking in-browser JSX compile so React never mounted; `marked` rolled to 18.x). Pinned all formerly-floating deps in `index.html`: `@babel/standalone@7.29.7`, `marked@12.0.2`, `dompurify@3.4.10`, `react@18.3.1`, `react-dom@18.3.1`. Tailwind Play CDN (line 11) left unpinned (CSS-only failure mode, can't blank the app).
 - Role-based access (2026-02-27): `users` Firestore collection, `upsertUser()` on login, `isAdmin` prop flow, Admin Panel gated behind admin role, Users tab in admin panel showing all logged-in accounts with role badge + timestamps; `sep@aircat.dk` hardcoded as sole admin on first login
 - Full app shell with sidebar navigation (10 pages + admin)
 - Ask CAT chat with Gemini integration + wizard mode
